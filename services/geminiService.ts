@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type, FunctionDeclaration } from "@google/genai";
 import { Message, ProjectFile } from "../types";
 
@@ -10,65 +11,65 @@ const sshTools: FunctionDeclaration[] = [
     parameters: {
       type: Type.OBJECT,
       properties: {
-        host: { type: Type.STRING, description: "Hostname or IP." },
-        username: { type: Type.STRING, description: "SSH username." },
-        port: { type: Type.NUMBER, description: "Port (default 22)." },
-        password: { type: Type.STRING, description: "Password if applicable." }
+        host: { type: Type.STRING, description: "Hostname or IP address of the target server." },
+        username: { type: Type.STRING, description: "The SSH username for authentication." },
+        port: { type: Type.NUMBER, description: "The SSH port (default is 22)." },
+        password: { type: Type.STRING, description: "The password for authentication (if applicable)." }
       },
       required: ["host", "username"]
     }
   },
   {
     name: "ssh_exec",
-    description: "Execute a command on the remote server and return output.",
+    description: "Execute a shell command on the connected remote server and return the standard output/error.",
     parameters: {
       type: Type.OBJECT,
       properties: {
-        command: { type: Type.STRING, description: "Shell command to run." }
+        command: { type: Type.STRING, description: "The shell command to be executed." }
       },
       required: ["command"]
     }
   },
   {
     name: "read_file",
-    description: "Read content from a remote file.",
+    description: "Read the full content of a file on the remote server.",
     parameters: {
       type: Type.OBJECT,
       properties: {
-        path: { type: Type.STRING, description: "Path to file." }
+        path: { type: Type.STRING, description: "The absolute or relative path to the file." }
       },
       required: ["path"]
     }
   },
   {
     name: "write_file",
-    description: "Create or overwrite a file with specified content.",
+    description: "Create a new file or overwrite an existing file on the remote server with the specified content.",
     parameters: {
       type: Type.OBJECT,
       properties: {
-        path: { type: Type.STRING, description: "Destination path." },
-        content: { type: Type.STRING, description: "Content to write." }
+        path: { type: Type.STRING, description: "The destination file path." },
+        content: { type: Type.STRING, description: "The text content to be written to the file." }
       },
       required: ["path", "content"]
     }
   },
   {
     name: "list_dir",
-    description: "List contents of a directory.",
+    description: "List all files and directories within a specific directory on the remote server.",
     parameters: {
       type: Type.OBJECT,
       properties: {
-        path: { type: Type.STRING, description: "Directory path (default current)." }
+        path: { type: Type.STRING, description: "The directory path (defaults to current working directory)." }
       }
     }
   },
   {
     name: "end_agent",
-    description: "Explicitly end the current agent task and close the remote session. Use this when the requested task is fully completed.",
+    description: "Finalize the current agent task and terminate the remote session. Use this once all user instructions are fulfilled.",
     parameters: {
       type: Type.OBJECT,
       properties: {
-        summary: { type: Type.STRING, description: "A brief summary of what was accomplished." }
+        summary: { type: Type.STRING, description: "A summary of the actions performed and final status." }
       }
     }
   }
@@ -85,10 +86,11 @@ export class GeminiService {
   ): Promise<{ text: string; toolCalls?: any[] }> {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-    // 1. Model Selection Logic
-    // Fast: gemini-2.5-flash-lite-latest
-    // Balanced: gemini-3-flash-preview
-    // Deep Thinking: gemini-3-pro-preview (with max thinking budget)
+    // Mode Mapping:
+    // Fast: gemini-2.5-flash-lite-latest (Lower latency)
+    // Balanced: gemini-3-flash-preview (Standard powerful multimodal)
+    // Deep: gemini-3-pro-preview (Advanced reasoning with maximum thinking budget)
+    
     let modelName = 'gemini-3-flash-preview';
     let thinkingBudget = 0;
 
@@ -96,12 +98,16 @@ export class GeminiService {
       modelName = 'gemini-2.5-flash-lite-latest';
     } else if (intelligenceMode === 'deep') {
       modelName = 'gemini-3-pro-preview';
-      thinkingBudget = 32768; // Max budget for Gemini 3 Pro reasoning
+      thinkingBudget = 32768; // Maximum reasoning capabilities for complex coding/SSH tasks
     }
 
-    // Agent mode defaults to Pro for complex tool execution unless Fast is explicitly requested
+    // Force Pro model for autonomous Agent Mode if not explicitly in 'fast' mode
     if (isAgentMode && intelligenceMode !== 'fast') {
       modelName = 'gemini-3-pro-preview';
+      // If we are in agent mode but not 'deep', give it a moderate thinking budget
+      if (intelligenceMode === 'balanced') {
+        thinkingBudget = 16384;
+      }
     }
 
     try {
@@ -123,6 +129,7 @@ export class GeminiService {
         };
       });
 
+      // Inject tool execution result back into the context
       if (toolResponse) {
         contents.push({
           role: 'user',
@@ -135,6 +142,7 @@ export class GeminiService {
         } as any);
       }
 
+      // Handle user prompt and multimodal file attachments
       if (prompt) {
         const fileParts = files.map(file => ({
           inlineData: {
@@ -153,10 +161,13 @@ export class GeminiService {
         contents: contents as any,
         config: {
           temperature: 0.7,
-          systemInstruction: `You are OmniChat Agent v3. Operating in ${intelligenceMode.toUpperCase()} mode.
-          ${isAgentMode ? "AGENT MODE ACTIVE: Use tools to manage SSH infrastructure. Plan logically." : "STANDARD MODE: Helpful assistant."}`,
+          systemInstruction: `Identity: OmniChat Autonomous Interface.
+Status: [Mode: ${intelligenceMode.toUpperCase()}] [Agent: ${isAgentMode ? 'ACTIVE' : 'IDLE'}].
+Core Directives:
+1. Provide concise, expert-level technical guidance.
+2. ${isAgentMode ? "AUTONOMOUS MODE: Use the provided SSH tools to explore and manage the server environment. Plan multi-step actions." : "ADVISORY MODE: Assist with coding and technical queries without direct system access unless requested."}
+3. Maintain the Grok-2026 aesthetic: futuristic, professional, and slightly edgy.`,
           tools: isAgentMode ? [{ functionDeclarations: sshTools }] : undefined,
-          // Handle thinking budget only if > 0
           ...(thinkingBudget > 0 ? { thinkingConfig: { thinkingBudget } } : {})
         }
       });
@@ -166,8 +177,8 @@ export class GeminiService {
         toolCalls: response.functionCalls
       };
     } catch (error) {
-      console.error("Gemini API Error:", error);
-      return { text: "AI Service error. Ensure API_KEY is valid and network connectivity is stable." };
+      console.error("Gemini Core Error:", error);
+      return { text: "Neural Link Failure: Communication with the core AI was interrupted. Check your API configuration and network status." };
     }
   }
 }

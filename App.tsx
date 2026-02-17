@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { ChatArea } from './components/ChatArea';
+import { AgentArea } from './components/AgentArea';
 import { RightSidebar } from './components/RightSidebar';
 import { TerminalArea } from './components/TerminalArea';
 import { SettingsModal } from './components/SettingsModal';
@@ -9,61 +10,35 @@ import { DeviceFlowModal } from './components/DeviceFlowModal';
 import { AIProviderId, ProviderInfo, Message, ChatSession, ProjectFile, AppView, Session, User, DeviceFlowResponse } from './types';
 import { GeminiService, IntelligenceMode } from './services/geminiService';
 import { io, Socket } from 'socket.io-client';
-import { Github, Loader2, Command, ShieldCheck, Mail, Lock, User as UserIcon, ArrowRight, ShieldAlert, Sparkles, Fingerprint } from 'lucide-react';
+import { Command, Mail, Lock, User as UserIcon, ArrowRight, ShieldAlert, ShieldCheck } from 'lucide-react';
 
 const App: React.FC = () => {
-  // 1. App-Level Authentication (OmniChat Account Identity)
   const [session, setSession] = useState<Session | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [authError, setAuthError] = useState<string | null>(null);
 
-  // 2. Main Navigation & Layout
   const [currentView, setCurrentView] = useState<AppView>(AppView.CHAT);
   const [activeProvider, setActiveProvider] = useState<AIProviderId>(AIProviderId.GEMINI);
   const [isAgentMode, setIsAgentMode] = useState(false);
   const [intelligenceMode, setIntelligenceMode] = useState<IntelligenceMode>('balanced');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Agent Specific Config
+  const [agentSafetyLevel, setAgentSafetyLevel] = useState<'low' | 'medium' | 'high'>('medium');
+  const [agentAlwaysAsk, setAgentAlwaysAsk] = useState(true);
   
-  // 3. Optional Provider-Specific Connections (Managed per user)
   const [connectedProviders, setConnectedProviders] = useState<Record<string, boolean>>({
-    [AIProviderId.GEMINI]: true, // System default reasoning
+    [AIProviderId.GEMINI]: true,
   });
 
   const providers: ProviderInfo[] = useMemo(() => [
-    { 
-      id: AIProviderId.GEMINI, 
-      name: 'Gemini Agent', 
-      description: 'Unified system-wide reasoning engine', 
-      models: ['gemini-3-pro-preview', 'gemini-3-flash-preview'], 
-      icon: '✨', 
-      isConnected: !!connectedProviders[AIProviderId.GEMINI] 
-    },
-    { 
-      id: AIProviderId.COPILOT, 
-      name: 'GitHub Copilot', 
-      description: 'Secure AI coding assistant link', 
-      models: ['gpt-4o'], 
-      icon: '🐙', 
-      isConnected: !!connectedProviders[AIProviderId.COPILOT] 
-    },
-    { 
-      id: AIProviderId.OPENAI, 
-      name: 'OpenAI', 
-      description: 'Enterprise reasoning with your own key', 
-      models: ['gpt-4o', 'o1-preview'], 
-      icon: '🧠', 
-      isConnected: !!connectedProviders[AIProviderId.OPENAI] 
-    },
-    { 
-      id: AIProviderId.GROK, 
-      name: 'xAI Grok', 
-      description: 'Experimental Grok-3 infrastructure link', 
-      models: ['grok-3'], 
-      icon: '✖️', 
-      isConnected: !!connectedProviders[AIProviderId.GROK] 
-    },
+    { id: AIProviderId.GEMINI, name: 'OmniCore (Gemini)', description: 'The primary system reasoning backbone.', models: ['gemini-3-pro-preview', 'gemini-3-flash-preview'], icon: '✨', isConnected: !!connectedProviders[AIProviderId.GEMINI] },
+    { id: AIProviderId.COPILOT, name: 'GitHub Copilot', description: 'Connect to GitHub for coding intelligence.', models: ['gpt-4o'], icon: '🐙', isConnected: !!connectedProviders[AIProviderId.COPILOT] },
+    { id: AIProviderId.OPENAI, name: 'OpenAI GPT', description: 'Legacy reasoning with enterprise keys.', models: ['gpt-4o', 'o1-preview'], icon: '🧠', isConnected: !!connectedProviders[AIProviderId.OPENAI] },
+    { id: AIProviderId.GROK, name: 'xAI Grok', description: 'Direct Grok-3 infrastructure linkage.', models: ['grok-3'], icon: '✖️', isConnected: !!connectedProviders[AIProviderId.GROK] },
   ], [connectedProviders]);
 
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -76,48 +51,40 @@ const App: React.FC = () => {
 
   const socketRef = useRef<Socket | null>(null);
 
-  // Persistent session recovery
   useEffect(() => {
     const recoverSession = async () => {
       try {
         const storedIdentity = localStorage.getItem('omnichat_user_v2');
         const storedProviders = localStorage.getItem('omnichat_provider_sync');
-        
-        if (storedProviders) {
-          setConnectedProviders(JSON.parse(storedProviders));
-        }
-        
+        if (storedProviders) setConnectedProviders(JSON.parse(storedProviders));
         if (storedIdentity) {
-          setSession({ user: JSON.parse(storedIdentity), expires: 'never' });
+          const user = JSON.parse(storedIdentity);
+          setSession({ user, expires: 'never' });
         }
       } catch (err) {
-        console.warn("Failed to synchronize previous session.");
+        console.warn("Security Handshake Refused.");
       } finally {
-        // High-end cinematic loading
-        setTimeout(() => setAuthLoading(false), 2000);
+        setTimeout(() => setAuthLoading(false), 1500);
       }
     };
     recoverSession();
   }, []);
 
-  // 4. App-Level Handlers
   const handleAppAuthSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setAuthLoading(true);
     setAuthError(null);
-
-    // Simulate secure backend identity vault handshake
     setTimeout(() => {
       const user: User = { 
         id: 'oid-' + Math.random().toString(36).substr(2, 9), 
-        name: authMode === 'signup' ? 'Operator One' : 'Nexus Operator', 
-        email: 'nexus@omnichat.ai', 
-        image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Omni' 
+        name: authMode === 'signup' ? 'New Operator' : 'Nexus Operator', 
+        email: 'operator@omnicore.ai', 
+        image: `https://api.dicebear.com/7.x/avataaars/svg?seed=${Math.random()}` 
       };
       localStorage.setItem('omnichat_user_v2', JSON.stringify(user));
       setSession({ user, expires: 'never' });
       setAuthLoading(false);
-    }, 1500);
+    }, 1000);
   };
 
   const handleLogout = () => {
@@ -130,7 +97,6 @@ const App: React.FC = () => {
     setConnectedProviders({ [AIProviderId.GEMINI]: true });
   };
 
-  // 5. Provider-Specific Auth (Device Flow for Copilot/Grok)
   const startProviderLink = async (providerId: AIProviderId) => {
     if (providerId === AIProviderId.COPILOT || providerId === AIProviderId.GROK) {
       try {
@@ -139,25 +105,19 @@ const App: React.FC = () => {
         setActiveDeviceFlow(data);
         pollProviderLink(data.device_code, providerId);
       } catch (e) {
-        console.error("Provider bridge initialization failed.");
+        setAuthError("Handshake with external portal failed.");
       }
     } else if (providerId === AIProviderId.OPENAI) {
-      const key = prompt("Enter OpenAI API Key (Stored in encrypted browser vault):");
-      if (key) {
-        updateProviderConnection(providerId, true);
-      }
+      const key = prompt("Enter OpenAI API Key:");
+      if (key) updateProviderConnection(providerId, true);
     }
   };
 
   const pollProviderLink = async (deviceCode: string, providerId: AIProviderId) => {
     const interval = setInterval(async () => {
       try {
-        const res = await fetch('/api/auth/github/poll', {
-          method: 'POST',
-          body: JSON.stringify({ device_code: deviceCode })
-        });
+        const res = await fetch('/api/auth/github/poll', { method: 'POST', body: JSON.stringify({ device_code: deviceCode }) });
         const data = await res.json();
-        
         if (data.access_token) {
           clearInterval(interval);
           updateProviderConnection(providerId, true);
@@ -167,9 +127,7 @@ const App: React.FC = () => {
           clearInterval(interval);
           setActiveDeviceFlow(null);
         }
-      } catch (e) {
-        clearInterval(interval);
-      }
+      } catch (e) { clearInterval(interval); }
     }, 5000);
   };
 
@@ -181,7 +139,6 @@ const App: React.FC = () => {
     });
   };
 
-  // Chat Lifecycle
   useEffect(() => {
     if (session) {
       socketRef.current = io('/ssh', { path: '/socket.io', transports: ['websocket'] });
@@ -194,37 +151,30 @@ const App: React.FC = () => {
     const newSession: ChatSession = {
       id: Date.now().toString(),
       providerId: activeProvider,
-      title: 'Active Link Session',
+      title: currentView === AppView.AGENT ? 'Agent Workflow Session' : 'Active Link Session',
       messages: [],
       createdAt: new Date(),
-      isAgentMode
+      isAgentMode: currentView === AppView.AGENT
     };
     setSessions(prev => [newSession, ...prev]);
     setActiveSessionId(newSession.id);
-    setCurrentView(AppView.CHAT);
+    setIsMobileMenuOpen(false);
+    setIsRightSidebarOpen(false);
   };
 
-  const activeSession = useMemo(() => 
-    sessions.find(s => s.id === activeSessionId) || sessions[0], 
-  [sessions, activeSessionId]);
+  const activeSession = useMemo(() => sessions.find(s => s.id === activeSessionId) || sessions[0], [sessions, activeSessionId]);
 
   const runAgentTurn = async (prompt: string | null, history: Message[], toolResponse?: any) => {
     setIsTyping(true);
     try {
-      const response = await GeminiService.chat(
-        prompt, 
-        history, 
-        projectFiles, 
-        isAgentMode, 
-        intelligenceMode,
-        toolResponse
-      );
-      
+      const isAgent = currentView === AppView.AGENT || isAgentMode;
+      const response = await GeminiService.chat(prompt, history, projectFiles, isAgent, intelligenceMode, toolResponse);
       const assistantMessage: Message = {
         id: (Date.now() + Math.random()).toString(),
         role: 'assistant',
         content: response.text,
         timestamp: new Date(),
+        thought: response.text.includes('thinking') ? "Analyzing current link infrastructure and optimizing for remote execution..." : undefined,
         toolCalls: response.toolCalls?.map((tc: any) => ({
           id: tc.id || Math.random().toString(36).substr(2, 9),
           name: tc.name,
@@ -232,12 +182,9 @@ const App: React.FC = () => {
           status: 'pending' as const
         }))
       };
-
-      setSessions(prev => prev.map(s => 
-        s.id === activeSessionId ? { ...s, messages: [...s.messages, assistantMessage] } : s
-      ));
+      setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, messages: [...s.messages, assistantMessage] } : s));
     } catch (error) {
-      console.error("AI reasoning cycle failed.");
+      console.error("Neural Reasoning Fault:", error);
     } finally {
       setIsTyping(false);
     }
@@ -273,7 +220,7 @@ const App: React.FC = () => {
           case 'read_file': socket.emit('agent-ssh-read', { path: toolCall.args.path }, resolve); break;
           case 'write_file': socket.emit('agent-ssh-write', { path: toolCall.args.path, content: toolCall.args.content }, resolve); break;
           case 'end_agent': socket.emit('agent-ssh-disconnect', resolve); break;
-          default: resolve({ error: 'Unknown tool' });
+          default: resolve({ error: 'Tool not supported.' });
         }
       });
     };
@@ -313,151 +260,103 @@ const App: React.FC = () => {
     reader.onload = (e) => {
       const result = e.target?.result as string;
       const base64 = result.includes(',') ? result.split(',')[1] : result;
-      const newFile: ProjectFile = {
-        id: Math.random().toString(36).substring(2, 11),
-        name: file.name,
-        size: `${(file.size / 1024).toFixed(1)} KB`,
-        type: file.type || 'text/plain',
-        content: base64
-      };
+      const newFile: ProjectFile = { id: Math.random().toString(36).substring(2, 11), name: file.name, size: `${(file.size / 1024).toFixed(1)} KB`, type: file.type || 'text/plain', content: base64 };
       setProjectFiles(prev => [...prev, newFile]);
     };
     reader.readAsDataURL(file);
   }, []);
 
-  // UI States
   if (authLoading) {
     return (
       <div className="flex h-screen w-full bg-black items-center justify-center">
-        <div className="flex flex-col items-center gap-8">
+        <div className="flex flex-col items-center gap-8 px-6 text-center animate-pulse">
           <div className="relative">
-            <div className="absolute inset-0 bg-grok-accent/20 blur-[40px] animate-pulse"></div>
-            <div className="w-16 h-16 bg-black border-2 border-grok-accent/30 rounded-2xl flex items-center justify-center relative z-10 animate-in zoom-in duration-700">
-              <Command size={32} className="text-grok-accent animate-pulse" />
+            <div className="absolute inset-0 bg-grok-accent/30 blur-[60px]"></div>
+            <div className="w-16 h-16 bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl flex items-center justify-center relative z-10">
+              <Command size={32} className="text-grok-accent" />
             </div>
           </div>
-          <div className="text-center">
-            <p className="text-[10px] text-grok-muted font-black uppercase tracking-[0.4em] animate-pulse">Initializing OmniCore Matrix</p>
-            <p className="text-[8px] text-grok-accent/50 font-mono mt-2 animate-pulse [animation-delay:0.5s]">SYNCING NEURAL_LINK_V4.0</p>
+          <div>
+            <p className="text-[10px] text-grok-muted font-black uppercase tracking-[0.4em]">Initializing OmniCore Matrix</p>
           </div>
         </div>
       </div>
     );
   }
 
-  // APP-LEVEL WELCOME / AUTH SCREEN
   if (!session) {
     return (
-      <div className="flex h-screen w-full bg-black items-center justify-center p-6 relative overflow-hidden">
-        {/* Ambient background particles simulated with CSS */}
-        <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-grok-accent/5 rounded-full blur-[120px] animate-pulse"></div>
-        <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-grok-accent/5 rounded-full blur-[100px] animate-pulse [animation-delay:1s]"></div>
+      <div className="flex h-screen w-full bg-black items-center justify-center p-4 md:p-6 relative overflow-hidden">
+        {/* Animated decorative shapes */}
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-grok-accent/5 rounded-full blur-[120px] animate-float"></div>
+        <div className="absolute bottom-[-10%] right-[-10%] w-[30%] h-[30%] bg-[#1d9bf0]/10 rounded-full blur-[100px] animate-float" style={{ animationDelay: '3s' }}></div>
 
-        <div className="max-w-md w-full bg-grok-card border border-grok-border rounded-[2.5rem] p-10 shadow-[0_0_100px_rgba(0,0,0,1)] animate-in zoom-in-95 duration-500 relative z-20 overflow-hidden">
-          {/* Subtle noise/texture overlay */}
-          <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] pointer-events-none"></div>
-          
-          <div className="flex flex-col items-center mb-10">
-            <div className="w-14 h-14 bg-grok-accent/10 rounded-2xl flex items-center justify-center mb-6 border border-grok-accent/20">
-              <Command size={28} className="text-grok-accent" />
+        <div className="max-w-md w-full glass-panel rounded-[2.5rem] p-8 md:p-12 shadow-[0_0_100px_rgba(0,0,0,0.8)] relative z-20 overflow-hidden animate-in zoom-in-95 duration-500">
+          <div className="flex flex-col items-center mb-10 text-center">
+            <div className="w-16 h-16 bg-[#1d9bf0] rounded-2xl flex items-center justify-center mb-6 shadow-[0_0_40px_rgba(29,155,240,0.4)] transition-transform hover:scale-105 duration-500">
+              <Command size={32} className="text-white" />
             </div>
-            <h2 className="text-3xl font-black text-white tracking-tighter mb-2">OMNICHAT</h2>
-            <p className="text-grok-muted text-[10px] font-black uppercase tracking-[0.4em] text-center opacity-60">Unified Neural Interface</p>
+            <h2 className="text-3xl md:text-4xl font-black text-white tracking-tighter mb-2">OMNICHAT</h2>
+            <p className="text-[#a3a3a3] text-[11px] font-bold tracking-[0.2em] uppercase opacity-80">Establish Neural Handshake</p>
           </div>
 
-          <form onSubmit={handleAppAuthSubmit} className="space-y-5">
+          <form onSubmit={handleAppAuthSubmit} className="space-y-6">
             {authMode === 'signup' && (
-              <div className="space-y-2 animate-in slide-in-from-top-2 duration-300">
-                <label className="text-[9px] font-bold text-grok-muted uppercase tracking-[0.2em] ml-1">Identity Tag</label>
-                <div className="relative">
-                  <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-grok-muted/50" size={16} />
-                  <input 
-                    type="text" 
-                    required
-                    placeholder="Operator Name"
-                    className="w-full bg-black/50 border border-grok-border rounded-xl py-4 pl-12 pr-4 text-sm font-medium text-white focus:ring-1 focus:ring-grok-accent focus:border-grok-accent outline-none transition-all placeholder:text-grok-muted/20"
-                  />
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-[#71717a] uppercase tracking-wider ml-1">Identity Tag</label>
+                <div className="relative group">
+                  <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-[#71717a] group-focus-within:text-[#1d9bf0] transition-colors" size={16} />
+                  <input type="text" required placeholder="Full Name" className="w-full bg-black/40 border border-[#27272a] rounded-2xl py-4 pl-12 pr-4 text-sm font-medium text-white focus:ring-1 focus:ring-[#1d9bf0] focus:border-[#1d9bf0] outline-none transition-all placeholder:text-[#71717a]/40" />
                 </div>
               </div>
             )}
             
             <div className="space-y-2">
-              <label className="text-[9px] font-bold text-grok-muted uppercase tracking-[0.2em] ml-1">Secure Email ID</label>
-              <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-grok-muted/50" size={16} />
-                <input 
-                  type="email" 
-                  required
-                  placeholder="nexus@omnicore.ai"
-                  className="w-full bg-black/50 border border-grok-border rounded-xl py-4 pl-12 pr-4 text-sm font-medium text-white focus:ring-1 focus:ring-grok-accent focus:border-grok-accent outline-none transition-all placeholder:text-grok-muted/20"
-                />
+              <label className="text-[10px] font-black text-[#71717a] uppercase tracking-wider ml-1">Nexus Node</label>
+              <div className="relative group">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-[#71717a] group-focus-within:text-[#1d9bf0] transition-colors" size={16} />
+                <input type="email" required placeholder="nexus@omnicore.ai" className="w-full bg-black/40 border border-[#27272a] rounded-2xl py-4 pl-12 pr-4 text-sm font-medium text-white focus:ring-1 focus:ring-[#1d9bf0] focus:border-[#1d9bf0] outline-none transition-all placeholder:text-[#71717a]/40" />
               </div>
             </div>
 
             <div className="space-y-2">
-              <label className="text-[9px] font-bold text-grok-muted uppercase tracking-[0.2em] ml-1">Neural Passkey</label>
-              <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-grok-muted/50" size={16} />
-                <input 
-                  type="password" 
-                  required
-                  placeholder="••••••••••••"
-                  className="w-full bg-black/50 border border-grok-border rounded-xl py-4 pl-12 pr-4 text-sm font-medium text-white focus:ring-1 focus:ring-grok-accent focus:border-grok-accent outline-none transition-all placeholder:text-grok-muted/20"
-                />
+              <label className="text-[10px] font-black text-[#71717a] uppercase tracking-wider ml-1">Secure Passkey</label>
+              <div className="relative group">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-[#71717a] group-focus-within:text-[#1d9bf0] transition-colors" size={16} />
+                <input type="password" required placeholder="••••••••••••" className="w-full bg-black/40 border border-[#27272a] rounded-2xl py-4 pl-12 pr-4 text-sm font-medium text-white focus:ring-1 focus:ring-[#1d9bf0] focus:border-[#1d9bf0] outline-none transition-all placeholder:text-[#71717a]/40" />
               </div>
             </div>
 
-            <button 
-              type="submit"
-              className="w-full py-4.5 bg-white text-black font-black rounded-2xl hover:brightness-90 transition-all shadow-xl active:scale-[0.98] flex items-center justify-center gap-3 group mt-4"
-            >
-              {authMode === 'signin' ? 'Establish Sync' : 'Initialize Identity'} 
+            {authError && <div className="p-3 bg-grok-error/10 border border-grok-error/20 rounded-xl text-grok-error text-[11px] font-bold text-center">{authError}</div>}
+
+            <button type="submit" className="w-full py-4.5 bg-[#1d9bf0] text-white font-bold rounded-full hover:bg-[#1a8cd8] hover:shadow-[0_0_20px_rgba(29,155,240,0.3)] transition-all active:scale-[0.98] flex items-center justify-center gap-3 group mt-4 text-[15px]">
+              {authMode === 'signin' ? 'Verify Identity' : 'Initialize Profile'} 
               <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
             </button>
           </form>
 
-          <div className="mt-8 text-center">
-            <button 
-              onClick={() => setAuthMode(authMode === 'signin' ? 'signup' : 'signin')}
-              className="text-[10px] text-grok-muted hover:text-white transition-colors font-bold uppercase tracking-widest"
-            >
-              {authMode === 'signin' ? "No identity on record? Create One" : "Already verified? Establish Link"}
+          <div className="mt-10 text-center">
+            <button onClick={() => setAuthMode(authMode === 'signin' ? 'signup' : 'signin')} className="text-[11px] text-[#71717a] font-bold uppercase tracking-widest hover:text-white transition-colors">
+              {authMode === 'signin' ? "No Operator ID? Create One" : "Already Verified? Sign In"}
             </button>
           </div>
-
-          <div className="mt-12 pt-8 border-t border-grok-border flex items-center justify-between opacity-50">
-             <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-grok-muted">
-               <ShieldCheck size={14} className="text-grok-success" />
-               Handshake Secure
+          
+          <div className="mt-10 pt-8 border-t border-white/5 flex items-center justify-between opacity-50">
+             <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-[#71717a]">
+               <ShieldCheck size={14} className="text-grok-success" /> Handshake Secure
              </div>
-             <div className="flex items-center gap-1.5">
-                <Sparkles size={12} className="text-grok-accent animate-pulse" />
-                <p className="text-[10px] text-grok-muted font-mono tracking-tighter uppercase">v3.2.0-PRO</p>
-             </div>
+             <p className="text-[10px] text-[#71717a] font-mono tracking-tighter uppercase">MATRIX v3.2-PRO</p>
           </div>
         </div>
       </div>
     );
   }
 
-  // MAIN APP SURFACE
-  return (
-    <div className="flex h-screen w-full bg-grok-bg overflow-hidden text-grok-foreground">
-      <Sidebar 
-        currentView={currentView}
-        isAgentMode={isAgentMode}
-        onToggleAgentMode={() => setIsAgentMode(!isAgentMode)}
-        onSelectView={setCurrentView}
-        onOpenSettings={() => setIsSettingsOpen(true)}
-        onNewChat={handleNewChat}
-        isCollapsed={isSidebarCollapsed}
-        onToggleCollapse={setIsSidebarCollapsed}
-        user={session.user}
-      />
-      
-      <main className="flex-1 flex flex-col min-w-0 bg-grok-bg relative z-0">
-        {currentView === AppView.CHAT ? (
-           <ChatArea 
+  const renderView = () => {
+    switch(currentView) {
+      case AppView.CHAT:
+        return (
+          <ChatArea 
             provider={providers.find(p => p.id === activeProvider)!}
             messages={activeSession?.messages || []}
             onSendMessage={handleSendMessage}
@@ -469,27 +368,59 @@ const App: React.FC = () => {
             isRightSidebarOpen={isRightSidebarOpen}
             onApproveTool={handleApproveTool}
             onRejectTool={handleRejectTool}
+            onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
           />
-        ) : (
-          <TerminalArea />
-        )}
+        );
+      case AppView.AGENT:
+        return (
+          <AgentArea 
+            messages={activeSession?.messages || []}
+            onSendMessage={handleSendMessage}
+            isTyping={isTyping}
+            intelligenceMode={intelligenceMode}
+            onSetIntelligenceMode={setIntelligenceMode}
+            onToggleRightSidebar={() => setIsRightSidebarOpen(!isRightSidebarOpen)}
+            isRightSidebarOpen={isRightSidebarOpen}
+            onApproveTool={handleApproveTool}
+            onRejectTool={handleRejectTool}
+            onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
+          />
+        );
+      case AppView.TERMINAL:
+        return <TerminalArea onOpenMobileMenu={() => setIsMobileMenuOpen(true)} />;
+      default:
+        return null;
+    }
+  };
 
-        {(!isSidebarCollapsed || isRightSidebarOpen) && (
-          <div 
-            className="fixed inset-0 bg-black/0 z-[5] lg:hidden"
-            onClick={() => {
-                setIsSidebarCollapsed(true);
-                setIsRightSidebarOpen(false);
-            }}
-          />
-        )}
+  return (
+    <div className="flex h-screen w-full bg-transparent overflow-hidden text-grok-foreground flex-col md:flex-row">
+      <Sidebar 
+        currentView={currentView}
+        isAgentMode={isAgentMode}
+        onToggleAgentMode={() => {
+           setIsAgentMode(!isAgentMode);
+           if (currentView !== AppView.AGENT) setCurrentView(AppView.AGENT);
+        }}
+        onSelectView={(v) => { setCurrentView(v); setIsMobileMenuOpen(false); }}
+        onOpenSettings={() => { setIsSettingsOpen(true); setIsMobileMenuOpen(false); }}
+        onNewChat={handleNewChat}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={setIsSidebarCollapsed}
+        user={session.user}
+        isMobileOpen={isMobileMenuOpen}
+        onMobileClose={() => setIsMobileMenuOpen(false)}
+      />
+      
+      <main className="flex-1 flex flex-col min-w-0 bg-transparent relative z-0 h-full overflow-hidden">
+        {renderView()}
       </main>
 
       <RightSidebar 
         sessions={sessions}
         activeSessionId={activeSessionId}
         projectFiles={projectFiles}
-        onSelectSession={setActiveSessionId}
+        onSelectSession={(id) => { setActiveSessionId(id); setIsRightSidebarOpen(false); }}
         onUploadFile={handleFileUpload}
         onRemoveFile={(id) => setProjectFiles(prev => prev.filter(f => f.id !== id))}
         isOpen={isRightSidebarOpen}
@@ -500,26 +431,20 @@ const App: React.FC = () => {
         <SettingsModal 
           providers={providers}
           activeProviderId={activeProvider}
+          agentSafetyLevel={agentSafetyLevel}
+          onSetAgentSafetyLevel={setAgentSafetyLevel}
+          agentAlwaysAsk={agentAlwaysAsk}
+          onSetAgentAlwaysAsk={setAgentAlwaysAsk}
           onSelectProvider={(id) => {
              const p = providers.find(prov => prov.id === id);
-             if (p?.isConnected) {
-               setActiveProvider(id);
-             } else {
-               startProviderLink(id);
-             }
+             if (p?.isConnected) setActiveProvider(id); else startProviderLink(id);
           }}
           onLogout={handleLogout}
           onClose={() => setIsSettingsOpen(false)}
         />
       )}
 
-      {activeDeviceFlow && (
-        <DeviceFlowModal 
-          data={activeDeviceFlow} 
-          onClose={() => setActiveDeviceFlow(null)}
-          onComplete={() => {}} 
-        />
-      )}
+      {activeDeviceFlow && <DeviceFlowModal data={activeDeviceFlow} onClose={() => setActiveDeviceFlow(null)} onComplete={() => {}} />}
     </div>
   );
 };

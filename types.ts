@@ -8,7 +8,8 @@ export enum AIProviderId {
 
 export enum AppView {
   CHAT = 'chat',
-  TERMINAL = 'terminal'
+  TERMINAL = 'terminal',
+  AGENT = 'agent'
 }
 
 export interface User {
