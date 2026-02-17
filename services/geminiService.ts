@@ -60,6 +60,16 @@ const sshTools: FunctionDeclaration[] = [
         path: { type: Type.STRING, description: "Directory path (default current)." }
       }
     }
+  },
+  {
+    name: "end_agent",
+    description: "Explicitly end the current agent task and close the remote session. Use this when the requested task is fully completed.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        summary: { type: Type.STRING, description: "A brief summary of what was accomplished." }
+      }
+    }
   }
 ];
 
@@ -131,7 +141,7 @@ export class GeminiService {
         config: {
           temperature: 0.7,
           systemInstruction: `You are OmniChat Agent.
-          ${isAgentMode ? "AGENT MODE ACTIVE. Use SSH tools to manage servers. Plan steps. If a user asks to deploy, connect first, then git pull/npm install. Always show your thinking. Ask for approval on sudo/rm." : "Standard Mode."}`,
+          ${isAgentMode ? "AGENT MODE ACTIVE. Use SSH tools to manage servers. Plan steps. If a user asks to deploy, connect first, then git pull/npm install. Always show your thinking. Ask for approval on sudo/rm. When the task is done, call end_agent." : "Standard Mode."}`,
           tools: isAgentMode ? [{ functionDeclarations: sshTools }] : undefined
         }
       });

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { ChatArea } from './components/ChatArea';
@@ -96,11 +95,12 @@ const App: React.FC = () => {
         role: 'assistant',
         content: response.text,
         timestamp: new Date(),
+        // Fix: Explicitly cast 'pending' status to avoid string widening
         toolCalls: response.toolCalls?.map((tc: any) => ({
           id: tc.id || Math.random().toString(36).substr(2, 9),
           name: tc.name,
           args: tc.args,
-          status: 'pending'
+          status: 'pending' as const
         }))
       };
 
@@ -108,9 +108,12 @@ const App: React.FC = () => {
         s.id === activeSessionId ? { ...s, messages: [...s.messages, assistantMessage] } : s
       ));
 
-      // Automatic tool execution for non-destructive read/list tasks if desired,
-      // but specification says HITL for all first execs or destructive.
-      // We'll wait for manual approval as per spec.
+      // Check if model explicitly called end_agent as the last tool
+      const endTool = assistantMessage.toolCalls?.find(tc => tc.name === 'end_agent');
+      if (endTool) {
+        // Automatically mark as completed as it doesn't require backend work other than disconnecting
+        handleApproveTool(assistantMessage.id, endTool.id);
+      }
     } catch (error) {
       console.error("Agent Loop Error:", error);
     } finally {
@@ -125,7 +128,7 @@ const App: React.FC = () => {
     const updatedHistory = [...(activeSession?.messages || []), newMessage];
     setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, messages: updatedHistory } : s));
 
-    await runAgentTurn(text, activeSession?.messages || []);
+    await runAgentTurn(text, updatedHistory);
   };
 
   const handleApproveTool = async (messageId: string, toolCallId: string) => {
@@ -134,7 +137,8 @@ const App: React.FC = () => {
       ...s,
       messages: s.messages.map(m => m.id === messageId ? {
         ...m,
-        toolCalls: m.toolCalls?.map(tc => tc.id === toolCallId ? { ...tc, status: 'executing' } : tc)
+        // Fix: Explicitly cast 'executing' status
+        toolCalls: m.toolCalls?.map(tc => tc.id === toolCallId ? { ...tc, status: 'executing' as const } : tc)
       } : m)
     })));
 
@@ -159,6 +163,9 @@ const App: React.FC = () => {
           case 'write_file':
             socket.emit('agent-ssh-write', { path: toolCall.args.path, content: toolCall.args.content }, resolve);
             break;
+          case 'end_agent':
+            socket.emit('agent-ssh-disconnect', (res: any) => resolve({ ...res, summary: toolCall.args.summary }));
+            break;
           default:
             resolve({ error: 'Unknown tool' });
         }
@@ -172,16 +179,25 @@ const App: React.FC = () => {
       ...s,
       messages: s.messages.map(m => m.id === messageId ? {
         ...m,
-        toolCalls: m.toolCalls?.map(tc => tc.id === toolCallId ? { ...tc, status: 'completed', result: resultStr } : tc)
+        // Fix: Explicitly cast 'completed' status
+        toolCalls: m.toolCalls?.map(tc => tc.id === toolCallId ? { ...tc, status: 'completed' as const, result: resultStr } : tc)
       } : m)
     })));
 
-    // 3. Continue the turn: feed result back to Gemini
-    await runAgentTurn(null, activeSession.messages, {
-      id: toolCallId,
-      name: toolCall.name,
-      response: result
-    });
+    // 3. Continue the turn: feed result back to Gemini (except for end_agent)
+    if (toolCall.name !== 'end_agent') {
+      // Fix: Explicitly type updatedMessages as Message[] and cast 'completed' status to avoid inference widening to string
+      const updatedMessages: Message[] = activeSession.messages.map(m => m.id === messageId ? {
+        ...m,
+        toolCalls: m.toolCalls?.map(tc => tc.id === toolCallId ? { ...tc, status: 'completed' as const, result: resultStr } : tc)
+      } : m);
+      
+      await runAgentTurn(null, updatedMessages, {
+        id: toolCallId,
+        name: toolCall.name,
+        response: result
+      });
+    }
   };
 
   const handleRejectTool = (messageId: string, toolCallId: string) => {
@@ -189,17 +205,16 @@ const App: React.FC = () => {
       ...s,
       messages: s.messages.map(m => m.id === messageId ? {
         ...m,
-        toolCalls: m.toolCalls?.map(tc => tc.id === toolCallId ? { ...tc, status: 'rejected' } : tc)
+        // Fix: Explicitly cast 'rejected' status
+        toolCalls: m.toolCalls?.map(tc => tc.id === toolCallId ? { ...tc, status: 'rejected' as const } : tc)
       } : m)
     })));
   };
 
-  // Added handleFileUpload to resolve compilation error and enable project file uploads
   const handleFileUpload = useCallback(async (file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       const result = e.target?.result as string;
-      // Extract base64 payload from data URL
       const base64 = result.includes(',') ? result.split(',')[1] : result;
       
       const newFile: ProjectFile = {

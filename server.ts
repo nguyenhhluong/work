@@ -8,6 +8,8 @@ const dev = process.env.NODE_ENV !== 'production';
 const hostname = 'localhost';
 const port = 3000;
 
+const SESSION_INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+
 const app = next({ dev, hostname, port });
 const handler = app.getRequestHandler();
 
@@ -21,8 +23,21 @@ app.prepare().then(() => {
     cors: { origin: '*' }
   });
 
-  // Agent Tool Sessions (managed per socket)
-  const sessions = new Map<string, SshClient>();
+  // Agent Tool Sessions tracking both client and inactivity timer
+  const sessions = new Map<string, { client: SshClient, timeout: NodeJS.Timeout }>();
+
+  const resetInactivityTimeout = (socketId: string) => {
+    const session = sessions.get(socketId);
+    if (session) {
+      clearTimeout(session.timeout);
+      const newTimeout = setTimeout(() => {
+        console.log(`> Session ${socketId} timed out due to inactivity.`);
+        session.client.end();
+        sessions.delete(socketId);
+      }, SESSION_INACTIVITY_TIMEOUT);
+      session.timeout = newTimeout;
+    }
+  };
 
   const sshNamespace = io.of('/ssh');
 
@@ -32,7 +47,14 @@ app.prepare().then(() => {
     socket.on('agent-ssh-connect', (config: any, callback: any) => {
       const client = new SshClient();
       client.on('ready', () => {
-        sessions.set(socket.id, client);
+        // Initial timeout
+        const timeout = setTimeout(() => {
+          console.log(`> Session ${socket.id} timed out due to inactivity.`);
+          client.end();
+          sessions.delete(socket.id);
+        }, SESSION_INACTIVITY_TIMEOUT);
+
+        sessions.set(socket.id, { client, timeout });
         callback({ success: true, message: 'Connected to ' + config.host });
       });
       client.on('error', (err) => callback({ success: false, error: err.message }));
@@ -52,10 +74,11 @@ app.prepare().then(() => {
     });
 
     socket.on('agent-ssh-exec', ({ command }: { command: string }, callback: any) => {
-      const client = sessions.get(socket.id);
-      if (!client) return callback({ error: 'No SSH session active. Connect first.' });
+      const session = sessions.get(socket.id);
+      if (!session) return callback({ error: 'No SSH session active. Connect first or session may have timed out.' });
 
-      client.exec(command, (err, stream) => {
+      resetInactivityTimeout(socket.id);
+      session.client.exec(command, (err, stream) => {
         if (err) return callback({ error: err.message });
         let out = '';
         let stderr = '';
@@ -66,10 +89,11 @@ app.prepare().then(() => {
     });
 
     socket.on('agent-ssh-read', ({ path }: { path: string }, callback: any) => {
-      const client = sessions.get(socket.id);
-      if (!client) return callback({ error: 'No SSH session active.' });
+      const session = sessions.get(socket.id);
+      if (!session) return callback({ error: 'No SSH session active.' });
 
-      client.exec(`cat "${path}"`, (err, stream) => {
+      resetInactivityTimeout(socket.id);
+      session.client.exec(`cat "${path}"`, (err, stream) => {
         if (err) return callback({ error: err.message });
         let content = '';
         stream.on('data', (d: Buffer) => content += d.toString());
@@ -78,15 +102,28 @@ app.prepare().then(() => {
     });
 
     socket.on('agent-ssh-write', ({ path, content }: { path: string, content: string }, callback: any) => {
-      const client = sessions.get(socket.id);
-      if (!client) return callback({ error: 'No SSH session active.' });
+      const session = sessions.get(socket.id);
+      if (!session) return callback({ error: 'No SSH session active.' });
 
+      resetInactivityTimeout(socket.id);
       // Using base64 to avoid shell escaping issues with complex content
       const b64 = Buffer.from(content).toString('base64');
-      client.exec(`echo "${b64}" | base64 -d > "${path}"`, (err, stream) => {
+      session.client.exec(`echo "${b64}" | base64 -d > "${path}"`, (err, stream) => {
         if (err) return callback({ error: err.message });
         stream.on('close', () => callback({ success: true }));
       });
+    });
+
+    socket.on('agent-ssh-disconnect', (callback: any) => {
+      const session = sessions.get(socket.id);
+      if (session) {
+        clearTimeout(session.timeout);
+        session.client.end();
+        sessions.delete(socket.id);
+        if (callback) callback({ success: true, message: 'Disconnected successfully' });
+      } else if (callback) {
+        callback({ success: false, error: 'No active session found' });
+      }
     });
 
     // --- Interactive Shell (Legacy/Terminal View) ---
@@ -114,8 +151,12 @@ app.prepare().then(() => {
     });
 
     socket.on('disconnect', () => {
-      const client = sessions.get(socket.id);
-      if (client) { client.end(); sessions.delete(socket.id); }
+      const session = sessions.get(socket.id);
+      if (session) {
+        clearTimeout(session.timeout);
+        session.client.end();
+        sessions.delete(socket.id);
+      }
       if (shellSsh) shellSsh.end();
     });
   });
