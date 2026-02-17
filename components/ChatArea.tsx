@@ -22,7 +22,7 @@ interface ChatAreaProps {
 
 const ToolCallCard: React.FC<{ tool: ToolCall, onApprove?: () => void, onReject?: () => void }> = ({ tool, onApprove, onReject }) => {
   return (
-    <div className="mt-4 border rounded-[1.5rem] overflow-hidden bg-black/40 backdrop-blur-md border-white/10 animate-slide-up">
+    <div className="mt-4 border rounded-[1.5rem] overflow-hidden bg-black/40 backdrop-blur-md border-white/10 animate-slide-up shadow-lg">
       <div className="px-5 py-3 border-b border-white/5 flex items-center justify-between bg-white/[0.03]">
         <div className="flex items-center gap-2">
           <Terminal size={14} className="text-grok-muted" />
@@ -60,11 +60,15 @@ const ToolCallCard: React.FC<{ tool: ToolCall, onApprove?: () => void, onReject?
 const MessageItem = memo(({ msg, onApprove, onReject }: { msg: Message, onApprove?: (id: string) => void, onReject?: (id: string) => void }) => (
   <div className={`flex gap-4 md:gap-6 py-8 md:py-10 ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}>
     <div className={`flex gap-4 md:gap-5 max-w-[94%] md:max-w-[85%] ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-      <div className={`w-9 h-9 rounded-full shrink-0 flex items-center justify-center shadow-lg ${msg.role === 'user' ? 'bg-white shadow-white/10' : 'glass-card'}`}>
+      <div className={`w-9 h-9 rounded-full shrink-0 flex items-center justify-center shadow-lg transition-transform duration-300 hover:scale-110 ${msg.role === 'user' ? 'bg-white shadow-white/10' : 'glass-card'}`}>
         {msg.role === 'user' ? <User size={18} className="text-black" /> : <Bot size={18} className="text-white" />}
       </div>
       <div className="flex-1 min-w-0">
-        <div className={`p-4 md:p-5 rounded-[2rem] leading-relaxed transition-all ${msg.role === 'user' ? 'bg-white/10 border border-white/10 text-white shadow-xl' : 'text-[#e4e4e7]'}`}>
+        <div className={`p-4 md:p-5 rounded-[2rem] leading-relaxed transition-all duration-300 cursor-default shadow-lg group-hover:shadow-2xl ${
+          msg.role === 'user' 
+            ? 'bg-white/10 border border-white/10 text-white hover:bg-white/[0.14] hover:scale-[1.01] hover:border-white/20' 
+            : 'text-[#e4e4e7] hover:bg-white/[0.03] hover:scale-[1.01] border border-transparent hover:border-white/5'
+        }`}>
            <p className="text-[15px] md:text-[16px] whitespace-pre-wrap break-words">{msg.content}</p>
         </div>
         {msg.toolCalls?.map(tool => (
@@ -135,7 +139,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           followOutput="auto"
           alignToBottom={true}
           itemContent={(index, msg) => (
-            <div className="px-4 md:px-8 max-w-4xl mx-auto">
+            <div className="px-4 md:px-8 max-w-4xl mx-auto group">
               <MessageItem msg={msg} onApprove={(toolId) => onApproveTool?.(msg.id, toolId)} onReject={(toolId) => onRejectTool?.(msg.id, toolId)} />
             </div>
           )}
@@ -173,7 +177,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             />
             <button
               onClick={() => handleSubmit()} disabled={!input.trim()}
-              className="w-11 h-11 md:w-12 md:h-12 bg-white rounded-full flex items-center justify-center hover:bg-white/90 transition-all disabled:opacity-20 disabled:grayscale shrink-0 mr-1 relative z-10 active:scale-95"
+              className="w-11 h-11 md:w-12 md:h-12 bg-white rounded-full flex items-center justify-center hover:bg-white/90 transition-all disabled:opacity-20 disabled:grayscale shrink-0 mr-1 relative z-10 active:scale-95 shadow-lg"
             >
               <ArrowUp size={22} className="text-black" />
             </button>
