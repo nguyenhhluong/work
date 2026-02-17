@@ -1,6 +1,6 @@
 {
-  "name": "Copy of OmniChat - Unified AI Interface",
-  "description": "A high-performance chat application supporting GitHub Copilot, OpenAI, Grok, and Gemini with OAuth 2.0 Device Flow authentication and containerized deployment.",
+  "name": "OmniChat - xAI Grok Interface",
+  "description": "Premium unified interface for AI agents and SSH orchestration.",
   "requestFramePermissions": [
     "camera",
     "microphone"

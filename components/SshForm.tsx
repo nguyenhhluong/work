@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { SSHConfig } from '../types';
-import { Server, User, Lock, Key, Globe, ArrowRight, Shield } from 'lucide-react';
+import { Server, User, Lock, Key, Globe, ArrowRight, Shield, Terminal } from 'lucide-react';
 
 interface SshFormProps {
   onConnect: (config: SSHConfig) => void;
@@ -22,92 +22,89 @@ export const SshForm: React.FC<SshFormProps> = ({ onConnect }) => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 bg-tokyo-card/30 border border-tokyo-border/40 p-10 rounded-[2.5rem] backdrop-blur-3xl shadow-2xl relative overflow-hidden group/form">
-      {/* Decorative gradient flare */}
-      <div className="absolute -top-32 -right-32 w-64 h-64 bg-tokyo-accent/10 blur-[100px] rounded-full transition-opacity group-focus-within/form:opacity-100 opacity-40"></div>
-      
-      <div className="grid grid-cols-4 gap-6">
-        <div className="col-span-3 space-y-2.5">
-          <label className="text-[10px] font-black text-tokyo-muted uppercase tracking-[0.2em] ml-1">Destination Gateway</label>
-          <div className="relative group/input">
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-tokyo-muted group-focus-within/input:text-tokyo-accent transition-colors z-10">
-              <Globe size={18} />
+    <form onSubmit={handleSubmit} className="space-y-6 bg-grok-card border border-grok-border p-8 rounded-[2rem] shadow-2xl relative overflow-hidden group/form">
+      <div className="grid grid-cols-5 gap-4">
+        <div className="col-span-4 space-y-2">
+          <label className="text-[10px] font-bold text-grok-muted uppercase tracking-[0.2em] ml-1">Destination Gateway</label>
+          <div className="relative">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-grok-muted group-focus-within/form:text-grok-accent transition-colors z-10">
+              <Globe size={16} />
             </div>
             <input
               type="text"
               required
-              placeholder="vps.acme.corp or IP"
-              className="w-full bg-tokyo-bg/50 border border-tokyo-border/50 rounded-2xl py-4 pl-12 pr-4 text-[14px] font-medium text-white focus:ring-2 focus:ring-tokyo-accent/20 focus:border-tokyo-accent/50 outline-none transition-all placeholder:text-tokyo-muted/60"
+              placeholder="Hostname or IP"
+              className="w-full bg-black border border-grok-border rounded-xl py-3.5 pl-11 pr-4 text-sm font-medium text-white focus:ring-1 focus:ring-grok-accent focus:border-grok-accent outline-none transition-all placeholder:text-grok-muted/40"
               value={formData.host}
               onChange={(e) => setFormData({ ...formData, host: e.target.value })}
             />
           </div>
         </div>
-        <div className="col-span-1 space-y-2.5">
-          <label className="text-[10px] font-black text-tokyo-muted uppercase tracking-[0.2em] ml-1">Port</label>
+        <div className="col-span-1 space-y-2">
+          <label className="text-[10px] font-bold text-grok-muted uppercase tracking-[0.2em] ml-1">Port</label>
           <input
             type="number"
             required
-            className="w-full bg-tokyo-bg/50 border border-tokyo-border/50 rounded-2xl py-4 px-4 text-[14px] font-bold text-white focus:ring-2 focus:ring-tokyo-accent/20 focus:border-tokyo-accent/50 outline-none transition-all"
+            className="w-full bg-black border border-grok-border rounded-xl py-3.5 px-4 text-sm font-bold text-white focus:ring-1 focus:ring-grok-accent focus:border-grok-accent outline-none transition-all"
             value={formData.port}
             onChange={(e) => setFormData({ ...formData, port: parseInt(e.target.value) })}
           />
         </div>
       </div>
 
-      <div className="space-y-2.5">
-        <label className="text-[10px] font-black text-tokyo-muted uppercase tracking-[0.2em] ml-1">SSH Identity</label>
-        <div className="relative group/input">
-          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-tokyo-muted group-focus-within/input:text-tokyo-accent transition-colors z-10">
-            <User size={18} />
+      <div className="space-y-2">
+        <label className="text-[10px] font-bold text-grok-muted uppercase tracking-[0.2em] ml-1">Operator ID</label>
+        <div className="relative">
+          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-grok-muted group-focus-within/form:text-grok-accent transition-colors z-10">
+            <User size={16} />
           </div>
           <input
             type="text"
             required
-            placeholder="root / system-admin"
-            className="w-full bg-tokyo-bg/50 border border-tokyo-border/50 rounded-2xl py-4 pl-12 pr-4 text-[14px] font-medium text-white focus:ring-2 focus:ring-tokyo-accent/20 focus:border-tokyo-accent/50 outline-none transition-all placeholder:text-tokyo-muted/60"
+            placeholder="Username"
+            className="w-full bg-black border border-grok-border rounded-xl py-3.5 pl-11 pr-4 text-sm font-medium text-white focus:ring-1 focus:ring-grok-accent focus:border-grok-accent outline-none transition-all placeholder:text-grok-muted/40"
             value={formData.username}
             onChange={(e) => setFormData({ ...formData, username: e.target.value })}
           />
         </div>
       </div>
 
-      <div className="space-y-2.5">
-        <div className="flex items-center justify-between mb-1 px-1">
-          <label className="text-[10px] font-black text-tokyo-muted uppercase tracking-[0.2em]">Secret Credentials</label>
+      <div className="space-y-2">
+        <div className="flex items-center justify-between px-1">
+          <label className="text-[10px] font-bold text-grok-muted uppercase tracking-[0.2em]">Authentication Secret</label>
           <button 
             type="button"
             onClick={() => setUseKey(!useKey)}
-            className="text-[10px] text-tokyo-accent hover:text-white font-black uppercase tracking-widest transition-colors flex items-center gap-1.5"
+            className="text-[9px] text-grok-accent hover:text-white font-black uppercase tracking-widest transition-colors flex items-center gap-1.5"
           >
-            <Shield size={10} /> {useKey ? 'Use Password' : 'Use SSH Key'}
+            <Shield size={10} /> {useKey ? 'Use Password' : 'Use RSA Key'}
           </button>
         </div>
         
-        <div className="relative group/input">
+        <div className="relative">
           {useKey ? (
             <div className="relative">
-              <div className="absolute left-4 top-4 text-tokyo-muted group-focus-within/input:text-tokyo-accent transition-colors z-10">
-                <Key size={18} />
+              <div className="absolute left-4 top-4 text-grok-muted group-focus-within/form:text-grok-accent transition-colors z-10">
+                <Key size={16} />
               </div>
               <textarea
                 required
                 placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
-                className="w-full bg-tokyo-bg/50 border border-tokyo-border/50 rounded-2xl py-5 pl-12 pr-4 text-[13px] font-mono text-tokyo-green focus:ring-2 focus:ring-tokyo-accent/20 focus:border-tokyo-accent/50 outline-none transition-all h-40 resize-none placeholder:text-tokyo-muted/40 custom-scrollbar leading-relaxed"
+                className="w-full bg-black border border-grok-border rounded-xl py-4 pl-11 pr-4 text-[12px] font-mono text-grok-success focus:ring-1 focus:ring-grok-accent focus:border-grok-accent outline-none transition-all h-32 resize-none placeholder:text-grok-muted/30 custom-scrollbar"
                 value={formData.privateKey}
                 onChange={(e) => setFormData({ ...formData, privateKey: e.target.value })}
               />
             </div>
           ) : (
             <div className="relative">
-              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-tokyo-muted group-focus-within/input:text-tokyo-accent transition-colors z-10">
-                <Lock size={18} />
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-grok-muted group-focus-within/form:text-grok-accent transition-colors z-10">
+                <Lock size={16} />
               </div>
               <input
                 type="password"
                 required
-                placeholder="Authentication Token or Password"
-                className="w-full bg-tokyo-bg/50 border border-tokyo-border/50 rounded-2xl py-4 pl-12 pr-4 text-[14px] font-medium text-white focus:ring-2 focus:ring-tokyo-accent/20 focus:border-tokyo-accent/50 outline-none transition-all placeholder:text-tokyo-muted/60"
+                placeholder="Password"
+                className="w-full bg-black border border-grok-border rounded-xl py-3.5 pl-11 pr-4 text-sm font-medium text-white focus:ring-1 focus:ring-grok-accent focus:border-grok-accent outline-none transition-all placeholder:text-grok-muted/40"
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
               />
@@ -118,18 +115,11 @@ export const SshForm: React.FC<SshFormProps> = ({ onConnect }) => {
 
       <button
         type="submit"
-        className="group w-full py-5 bg-tokyo-accent hover:bg-tokyo-accent/90 text-tokyo-bg font-black rounded-[1.25rem] transition-all shadow-xl shadow-tokyo-accent/20 mt-6 flex items-center justify-center gap-4 active:scale-[0.98]"
+        className="w-full py-4 bg-white text-black font-black rounded-xl hover:brightness-90 transition-all shadow-xl mt-4 flex items-center justify-center gap-3 active:scale-[0.98]"
       >
-        <Server size={22} className="group-hover:scale-110 transition-transform" />
+        <Terminal size={18} />
         Establish Secure Bridge
-        <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform duration-300" />
       </button>
-
-      <div className="flex items-center justify-center gap-3 mt-4 opacity-30">
-        <div className="h-px bg-tokyo-border flex-1"></div>
-        <span className="text-[9px] text-tokyo-muted font-black uppercase tracking-[0.3em]">OmniConnect Protocol Security</span>
-        <div className="h-px bg-tokyo-border flex-1"></div>
-      </div>
     </form>
   );
 };
