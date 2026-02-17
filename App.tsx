@@ -115,9 +115,17 @@ const App: React.FC = () => {
     setConnectedProviders({ [AIProviderId.GEMINI]: true });
   };
 
+  /**
+   * PROVIDER AUTHENTICATION CONNECTOR
+   * Handles the initialization logic for different AI providers.
+   * - COPILOT/GROK: Uses Device Flow (OAuth2).
+   * - OPENAI: Direct API Key prompt.
+   * - LOCAL: Local Engine config.
+   */
   const startProviderLink = async (providerId: AIProviderId) => {
     if (providerId === AIProviderId.COPILOT || providerId === AIProviderId.GROK) {
       try {
+        // Step 1: Request Device Code from Backend
         const res = await fetch('/api/auth/github/start', { method: 'POST' });
         const data = await res.json();
         setActiveDeviceFlow(data);
@@ -126,6 +134,7 @@ const App: React.FC = () => {
         setAuthError("Auth gateway handshake failed.");
       }
     } else if (providerId === AIProviderId.OPENAI) {
+      // Prompt user for API key - in production, this should be stored securely
       const key = prompt("Enter Neural API Key (OpenAI):");
       if (key) updateProviderConnection(providerId, true);
     } else if (providerId === AIProviderId.LOCAL) {
@@ -134,6 +143,10 @@ const App: React.FC = () => {
     }
   };
 
+  /**
+   * OAUTH DEVICE FLOW POLLING
+   * Periodically checks with the backend to see if the user has completed the GitHub/Copilot handshake.
+   */
   const pollProviderLink = async (deviceCode: string, providerId: AIProviderId) => {
     const interval = setInterval(async () => {
       try {
@@ -168,6 +181,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (session) {
+      // Initialize Socket.io connection for SSH Bridge
       socketRef.current = io('/ssh', { path: '/socket.io', transports: ['websocket'] });
       if (sessions.length === 0) handleNewChat();
     }
@@ -191,6 +205,11 @@ const App: React.FC = () => {
 
   const activeSession = useMemo(() => sessions.find(s => s.id === activeSessionId) || sessions[0], [sessions, activeSessionId]);
 
+  /**
+   * NEURAL REASONING LOOP (AGENT TURN)
+   * Dispatches the prompt to the selected AI model (Gemini or Local).
+   * Processes tool calls and handles automatic execution based on safety levels.
+   */
   const runAgentTurn = async (prompt: string | null, history: Message[], toolResponse?: any) => {
     if (isStoppingRef.current) return;
     setIsTyping(true);
@@ -203,6 +222,7 @@ const App: React.FC = () => {
       };
 
       let response;
+      // Branch reasoning to the selected intelligence backbone
       if (activeProvider === AIProviderId.LOCAL) {
         response = await LocalAiService.chat(prompt, history, localConfig, isAgent);
       } else {
@@ -225,6 +245,7 @@ const App: React.FC = () => {
 
       setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, messages: [...s.messages, assistantMessage] } : s));
 
+      // Handle Automatic Tool Execution (Autonomous Logic)
       if (assistantMessage.toolCalls?.length && !agentAlwaysAsk && !isStoppingRef.current) {
         const canAutoApprove = assistantMessage.toolCalls.every(tc => ['list_dir', 'read_file', 'connect_ssh'].includes(tc.name));
         if (canAutoApprove || agentSafetyLevel === 'low') {
@@ -249,6 +270,11 @@ const App: React.FC = () => {
     await runAgentTurn(text, updatedHistory);
   };
 
+  /**
+   * TOOL EXECUTION HANDLER
+   * Communicates with the backend SSH bridge via Socket.io to perform system actions.
+   * Feeds the execution result back into the agent reasoning loop for synthesis.
+   */
   const handleApproveTool = async (messageId: string, toolCallId: string) => {
     let currentSessionMessages: Message[] = [];
     setSessions(prev => {
@@ -270,6 +296,7 @@ const App: React.FC = () => {
       } : m)
     })));
 
+    // Emit specialized SSH events to the backend bridge
     const executeOnBackend = (): Promise<any> => {
       return new Promise((resolve) => {
         const socket = socketRef.current!;
@@ -298,6 +325,7 @@ const App: React.FC = () => {
           }));
         
         const finalSession = updated.find(s => s.id === activeSessionId);
+        // Step 2: Feed tool output back to Gemini/Local AI for next step
         if (finalSession && !isStoppingRef.current) {
             runAgentTurn(null, finalSession.messages, { id: toolCallId, name: toolCall.name, response: result });
         }

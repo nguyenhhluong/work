@@ -15,6 +15,11 @@ export interface AgentSettings {
   };
 }
 
+/**
+ * SSH TOOL DEFINITIONS
+ * These functions are exposed to Gemini via the Tool Calling API.
+ * The model decides when to invoke these based on the user's operational objective.
+ */
 const getSshTools = (permissions: AgentSettings['toolPermissions']): FunctionDeclaration[] => {
   const tools: FunctionDeclaration[] = [
     {
@@ -92,6 +97,10 @@ const getSshTools = (permissions: AgentSettings['toolPermissions']): FunctionDec
 };
 
 export class GeminiService {
+  /**
+   * CORE CHAT METHOD (GOOGLE GEMINI API)
+   * Connects to Google's generative models to provide reasoning, code generation, and system orchestration.
+   */
   static async chat(
     prompt: string | null, 
     history: Message[], 
@@ -101,9 +110,10 @@ export class GeminiService {
     agentSettings?: AgentSettings,
     toolResponse?: { id: string, name: string, response: any }
   ): Promise<{ text: string; toolCalls?: any[] }> {
+    // Initialization using provided guidelines
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-    // Use guidelines for model selection
+    // Model selection based on the operational context
     let modelName = 'gemini-3-flash-preview';
     let thinkingBudget = 0;
 
@@ -111,21 +121,23 @@ export class GeminiService {
       modelName = 'gemini-flash-lite-latest';
     } else if (intelligenceMode === 'deep') {
       modelName = 'gemini-3-pro-preview';
-      thinkingBudget = 32768; // Max for Pro
+      thinkingBudget = 32768; // High-reasoning budget
     }
 
     if (isAgentMode) {
-      modelName = 'gemini-3-pro-preview'; // Pro is better for reasoning/tool use
+      modelName = 'gemini-3-pro-preview'; // Pro is optimized for complex tool orchestration
       if (intelligenceMode === 'balanced') {
         thinkingBudget = 16384;
       }
     }
 
     try {
+      // Map message history to Gemini API 'contents' format
       const contents: any[] = history.map(m => {
         const parts: any[] = [];
         if (m.content) parts.push({ text: m.content });
         
+        // Include previous tool calls so the model has execution context
         if (m.toolCalls && m.toolCalls.length > 0 && m.role === 'assistant') {
           m.toolCalls.forEach(tc => {
             parts.push({
@@ -143,6 +155,7 @@ export class GeminiService {
         };
       });
 
+      // Inject tool execution result into the context
       if (toolResponse) {
         contents.push({
           role: 'user',
@@ -155,6 +168,7 @@ export class GeminiService {
         } as any);
       }
 
+      // Prepare user prompt with optional file context
       if (prompt) {
         const fileParts = files.map(file => ({
           inlineData: {
@@ -174,10 +188,12 @@ export class GeminiService {
         }
       }
 
+      // Configure tools based on agent permissions
       const activeTools = isAgentMode && agentSettings 
         ? getSshTools(agentSettings.toolPermissions)
         : undefined;
 
+      // CALL API: Perform generation with system instructions and tools
       const response = await ai.models.generateContent({
         model: modelName,
         contents: contents as any,

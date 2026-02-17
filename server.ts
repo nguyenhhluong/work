@@ -17,7 +17,11 @@ const handler = app.getRequestHandler();
 
 app.prepare().then(() => {
   const httpServer = createServer(async (req, res) => {
-    // Auth endpoints for device flow
+    /**
+     * GITHUB DEVICE FLOW: STEP 1
+     * Initiates the OAuth device authorization flow.
+     * Used by GitHub Copilot and other GitHub-based connectors.
+     */
     if (req.url === '/api/auth/github/start' && req.method === 'POST') {
       try {
         const response = await fetch('https://github.com/login/device/code', {
@@ -36,6 +40,11 @@ app.prepare().then(() => {
       }
     }
 
+    /**
+     * GITHUB DEVICE FLOW: STEP 2 (POLLING)
+     * Periodically checks if the user has authorized the device via the provided URL.
+     * Returns the access token once the handshake is complete.
+     */
     if (req.url === '/api/auth/github/poll' && req.method === 'POST') {
       let body = '';
       req.on('data', chunk => { body += chunk; });
@@ -62,7 +71,11 @@ app.prepare().then(() => {
       return;
     }
 
-    // Local AI Proxy Endpoints
+    /**
+     * LOCAL AI PROXY: CHAT
+     * Forwards chat completion requests to local engines like Ollama or LM Studio.
+     * Prevents CORS issues and provides a unified internal API.
+     */
     if (req.url === '/api/local-ai/chat' && req.method === 'POST') {
       let body = '';
       req.on('data', chunk => { body += chunk; });
@@ -89,6 +102,10 @@ app.prepare().then(() => {
       return;
     }
 
+    /**
+     * LOCAL AI PROXY: MODEL LISTING
+     * Queries the local AI engine for available models to populate the UI settings.
+     */
     if (req.url === '/api/local-ai/models' && req.method === 'POST') {
       let body = '';
       req.on('data', chunk => { body += chunk; });
@@ -97,7 +114,7 @@ app.prepare().then(() => {
           const { baseUrl } = JSON.parse(body);
           const response = await fetch(`${baseUrl}/models`);
           const data = await response.json();
-          // Map different model listing formats
+          // Map different model listing formats (OpenAI-compatible vs Ollama)
           const modelList = data.data ? data.data.map((m: any) => m.id) : (data.models ? data.models.map((m: any) => m.name) : []);
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ models: modelList }));
@@ -135,7 +152,11 @@ app.prepare().then(() => {
   const sshNamespace = io.of('/ssh');
 
   sshNamespace.on('connection', (socket) => {
-    // 1. Agent Tooling Bridge
+    /**
+     * AGENT SSH TOOLING: INITIAL CONNECTION
+     * Authenticates with a remote server via SSH.
+     * Stores the client instance for subsequent tool calls (read/write/exec).
+     */
     socket.on('agent-ssh-connect', (config: any, callback: any) => {
       const client = new SshClient();
       client.on('ready', () => {
@@ -159,6 +180,10 @@ app.prepare().then(() => {
       } catch (e: any) { callback({ success: false, error: e.message }); }
     });
 
+    /**
+     * AGENT SSH TOOLING: COMMAND EXECUTION
+     * Runs a shell command and returns captured stdout/stderr.
+     */
     socket.on('agent-ssh-exec', ({ command }: { command: string }, callback: any) => {
       const session = agentSessions.get(socket.id);
       if (!session) return callback({ error: 'Target node disconnected. Re-initialize SSH.' });
@@ -173,6 +198,10 @@ app.prepare().then(() => {
       });
     });
 
+    /**
+     * AGENT SSH TOOLING: FILE READING
+     * Specialized execution to retrieve file contents using 'cat'.
+     */
     socket.on('agent-ssh-read', ({ path }: { path: string }, callback: any) => {
       const session = agentSessions.get(socket.id);
       if (!session) return callback({ error: 'Disconnected.' });
@@ -187,6 +216,10 @@ app.prepare().then(() => {
       });
     });
 
+    /**
+     * AGENT SSH TOOLING: DIRECTORY LISTING
+     * Returns a list of files in a specific remote directory.
+     */
     socket.on('agent-ssh-list-dir', ({ path }: { path: string }, callback: any) => {
       const session = agentSessions.get(socket.id);
       if (!session) return callback({ error: 'Disconnected.' });
@@ -200,6 +233,10 @@ app.prepare().then(() => {
       });
     });
 
+    /**
+     * AGENT SSH TOOLING: FILE WRITING
+     * Uses base64 encoding to safely push file content to the remote system.
+     */
     socket.on('agent-ssh-write', ({ path, content }: { path: string, content: string }, callback: any) => {
       const session = agentSessions.get(socket.id);
       if (!session) return callback({ error: 'Disconnected.' });
@@ -211,17 +248,10 @@ app.prepare().then(() => {
       });
     });
 
-    socket.on('agent-ssh-disconnect', (callback: any) => {
-      const session = agentSessions.get(socket.id);
-      if (session) {
-        clearTimeout(session.timeout);
-        session.client.end();
-        agentSessions.delete(socket.id);
-        if (callback) callback({ success: true });
-      }
-    });
-
-    // 2. Interactive Shell Bridge
+    /**
+     * INTERACTIVE SHELL BRIDGE
+     * Connects a persistent PTY stream to a remote host for the Terminal Grid UI.
+     */
     let shellClient: SshClient | null = null;
     socket.on('connect-ssh', (config: any) => {
       shellClient = new SshClient();

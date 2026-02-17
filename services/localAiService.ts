@@ -2,6 +2,11 @@
 import { Message, LocalProviderConfig } from "../types";
 
 export class LocalAiService {
+  /**
+   * LOCAL AI CONNECTOR
+   * Forwards chat requests to the HEIFI backend proxy, which then calls 
+   * local model servers like Ollama or LM Studio.
+   */
   static async chat(
     prompt: string | null,
     history: Message[],
@@ -18,8 +23,7 @@ export class LocalAiService {
     }
 
     try {
-      // Use the local proxy on the backend to avoid CORS issues if necessary, 
-      // but here we'll try a direct fetch to the user-provided URL or proxy via our server
+      // POST to the internal proxy endpoint to bypass client-side CORS restrictions
       const response = await fetch('/api/local-ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -36,7 +40,7 @@ export class LocalAiService {
 
       return {
         text: data.choices[0].message.content,
-        toolCalls: data.choices[0].message.tool_calls // If supported by local model
+        toolCalls: data.choices[0].message.tool_calls // If supported by the local model (e.g., Llama 3 via Ollama)
       };
     } catch (error) {
       console.error("Local AI Error:", error);
@@ -44,6 +48,10 @@ export class LocalAiService {
     }
   }
 
+  /**
+   * MODEL DISCOVERY
+   * Fetches available models from the local engine to allow users to switch reasoning backbones.
+   */
   static async fetchModels(baseUrl: string): Promise<string[]> {
     try {
       const response = await fetch('/api/local-ai/models', {
