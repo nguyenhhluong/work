@@ -11,11 +11,21 @@ export enum AppView {
   TERMINAL = 'terminal'
 }
 
+export interface ToolCall {
+  id: string;
+  name: string;
+  args: any;
+  status: 'pending' | 'approved' | 'rejected' | 'executing' | 'completed' | 'error';
+  result?: string;
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+  toolCalls?: ToolCall[];
+  thought?: string;
 }
 
 export interface ChatSession {
@@ -24,6 +34,7 @@ export interface ChatSession {
   title: string;
   messages: Message[];
   createdAt: Date;
+  isAgentMode?: boolean;
 }
 
 export interface ProjectFile {

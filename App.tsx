@@ -1,30 +1,32 @@
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { ChatArea } from './components/ChatArea';
 import { RightSidebar } from './components/RightSidebar';
 import { TerminalArea } from './components/TerminalArea';
 import { DeviceFlowModal } from './components/DeviceFlowModal';
 import { SettingsModal } from './components/SettingsModal';
-import { AIProviderId, ProviderInfo, Message, DeviceFlowResponse, ChatSession, ProjectFile, AppView } from './types';
+import { AIProviderId, ProviderInfo, Message, DeviceFlowResponse, ChatSession, ProjectFile, AppView, ToolCall } from './types';
 import { GeminiService } from './services/geminiService';
+import { io, Socket } from 'socket.io-client';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<AppView>(AppView.CHAT);
   const [activeProvider, setActiveProvider] = useState<AIProviderId>(AIProviderId.GEMINI);
+  const [isAgentMode, setIsAgentMode] = useState(false);
   const [providers, setProviders] = useState<ProviderInfo[]>([
     { 
       id: AIProviderId.GEMINI, 
-      name: 'Google Gemini', 
-      description: 'Next-gen multimodal reasoning', 
-      models: ['gemini-3-flash-preview', 'gemini-3-pro-preview'], 
+      name: 'Gemini Agent', 
+      description: 'Autonomous reasoning & tool use', 
+      models: ['gemini-3-pro-preview'], 
       icon: '✨', 
       isConnected: true 
     },
     { 
       id: AIProviderId.COPILOT, 
       name: 'GitHub Copilot', 
-      description: 'The world’s most widely adopted AI developer tool', 
+      description: 'AI developer tool with GitHub flow', 
       models: ['gpt-4o', 'claude-3.5-sonnet'], 
       icon: '🐙', 
       isConnected: false 
@@ -32,7 +34,7 @@ const App: React.FC = () => {
     { 
       id: AIProviderId.OPENAI, 
       name: 'OpenAI', 
-      description: 'Advanced language models from OpenAI', 
+      description: 'GPT-4o & Reasoning models', 
       models: ['gpt-4o', 'o1-preview'], 
       icon: '🧠', 
       isConnected: false 
@@ -40,30 +42,30 @@ const App: React.FC = () => {
     { 
       id: AIProviderId.GROK, 
       name: 'xAI Grok', 
-      description: 'Sassy and real-time knowledge via GitHub Models', 
+      description: 'Sassy intelligence via GitHub Models', 
       models: ['grok-3', 'grok-4'], 
       icon: '✖️', 
       isConnected: false 
     },
   ]);
 
-  // Session Management
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string>('');
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true);
   const [projectFiles, setProjectFiles] = useState<ProjectFile[]>([]);
 
-  // UI State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [currentDeviceFlow, setCurrentDeviceFlow] = useState<DeviceFlowResponse | null>(null);
   const [isTyping, setIsTyping] = useState(false);
 
-  // Initialize first session
+  // Backend Socket for Tools
+  const socketRef = useRef<Socket | null>(null);
+
   useEffect(() => {
-    if (sessions.length === 0) {
-      handleNewChat();
-    }
+    socketRef.current = io('/ssh', { path: '/socket.io', transports: ['websocket'] });
+    if (sessions.length === 0) handleNewChat();
+    return () => { socketRef.current?.disconnect(); };
   }, []);
 
   const handleNewChat = () => {
@@ -72,7 +74,8 @@ const App: React.FC = () => {
       providerId: activeProvider,
       title: 'New Conversation',
       messages: [],
-      createdAt: new Date()
+      createdAt: new Date(),
+      isAgentMode
     };
     setSessions(prev => [newSession, ...prev]);
     setActiveSessionId(newSession.id);
@@ -83,111 +86,112 @@ const App: React.FC = () => {
     sessions.find(s => s.id === activeSessionId) || sessions[0], 
   [sessions, activeSessionId]);
 
-  const handleProviderSelect = (id: AIProviderId) => {
-    setActiveProvider(id);
-    setCurrentView(AppView.CHAT);
-    if (activeSession && activeSession.messages.length === 0) {
-      setSessions(prev => prev.map(s => 
-        s.id === activeSessionId ? { ...s, providerId: id } : s
-      ));
-    }
-  };
-
-  const handleLogin = (id: AIProviderId) => {
-    setCurrentDeviceFlow({
-      user_code: 'GH-8291-C2',
-      verification_uri: 'https://github.com/login/device',
-      device_code: 'temp_device_code_123',
-      expires_in: 900,
-      interval: 5
-    });
-    setIsModalOpen(true);
-  };
-
-  const handleAuthComplete = () => {
-    setProviders(prev => prev.map(p => 
-      p.id === activeProvider ? { ...p, isConnected: true } : p
-    ));
-    setIsModalOpen(false);
-    setCurrentDeviceFlow(null);
-  };
-
-  const handleSendMessage = async (text: string) => {
-    if (!activeSessionId) return;
-
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: text,
-      timestamp: new Date()
-    };
-
-    setSessions(prev => prev.map(s => {
-      if (s.id === activeSessionId) {
-        const isFirstMessage = s.messages.length === 0;
-        return {
-          ...s,
-          title: isFirstMessage ? text.slice(0, 30) + (text.length > 30 ? '...' : '') : s.title,
-          messages: [...s.messages, newMessage]
-        };
-      }
-      return s;
-    }));
-
+  const runAgentTurn = async (prompt: string | null, history: Message[], toolResponse?: any) => {
     setIsTyping(true);
     try {
-      if (activeProvider === AIProviderId.GEMINI) {
-        const geminiResponse = await GeminiService.chat(
-          text, 
-          activeSession.messages,
-          projectFiles
-        );
-        const assistantMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: geminiResponse,
-          timestamp: new Date()
-        };
-        setSessions(prev => prev.map(s => 
-          s.id === activeSessionId ? { ...s, messages: [...s.messages, assistantMessage] } : s
-        ));
-      } else {
-        await new Promise(r => setTimeout(r, 1500));
-        const assistantMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: `This is a simulated response from ${activeProvider}. Connect your real keys to enable live completions.`,
-          timestamp: new Date()
-        };
-        setSessions(prev => prev.map(s => 
-          s.id === activeSessionId ? { ...s, messages: [...s.messages, assistantMessage] } : s
-        ));
-      }
+      const response = await GeminiService.chat(prompt, history, projectFiles, isAgentMode, toolResponse);
+      
+      const assistantMessage: Message = {
+        id: (Date.now() + Math.random()).toString(),
+        role: 'assistant',
+        content: response.text,
+        timestamp: new Date(),
+        toolCalls: response.toolCalls?.map((tc: any) => ({
+          id: tc.id || Math.random().toString(36).substr(2, 9),
+          name: tc.name,
+          args: tc.args,
+          status: 'pending'
+        }))
+      };
+
+      setSessions(prev => prev.map(s => 
+        s.id === activeSessionId ? { ...s, messages: [...s.messages, assistantMessage] } : s
+      ));
+
+      // Automatic tool execution for non-destructive read/list tasks if desired,
+      // but specification says HITL for all first execs or destructive.
+      // We'll wait for manual approval as per spec.
     } catch (error) {
-      console.error("Chat Error:", error);
+      console.error("Agent Loop Error:", error);
     } finally {
       setIsTyping(false);
     }
   };
 
-  const handleFileUpload = async (file: File) => {
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const content = e.target?.result as string;
-      const newFile: ProjectFile = {
-        id: Date.now().toString(),
-        name: file.name,
-        size: (file.size / 1024).toFixed(1) + ' KB',
-        type: file.type,
-        content: content.split(',')[1]
-      };
-      setProjectFiles(prev => [...prev, newFile]);
-    };
-    reader.readAsDataURL(file);
+  const handleSendMessage = async (text: string) => {
+    if (!activeSessionId) return;
+    const newMessage: Message = { id: Date.now().toString(), role: 'user', content: text, timestamp: new Date() };
+    
+    const updatedHistory = [...(activeSession?.messages || []), newMessage];
+    setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, messages: updatedHistory } : s));
+
+    await runAgentTurn(text, activeSession?.messages || []);
   };
 
-  const handleRemoveFile = (id: string) => {
-    setProjectFiles(prev => prev.filter(f => f.id !== id));
+  const handleApproveTool = async (messageId: string, toolCallId: string) => {
+    // 1. Mark as executing
+    setSessions(prev => prev.map(s => ({
+      ...s,
+      messages: s.messages.map(m => m.id === messageId ? {
+        ...m,
+        toolCalls: m.toolCalls?.map(tc => tc.id === toolCallId ? { ...tc, status: 'executing' } : tc)
+      } : m)
+    })));
+
+    const currentMessage = activeSession.messages.find(m => m.id === messageId);
+    const toolCall = currentMessage?.toolCalls?.find(tc => tc.id === toolCallId);
+    if (!toolCall || !socketRef.current) return;
+
+    // 2. Execute via Backend
+    const executeOnBackend = (): Promise<any> => {
+      return new Promise((resolve) => {
+        const socket = socketRef.current!;
+        switch (toolCall.name) {
+          case 'connect_ssh':
+            socket.emit('agent-ssh-connect', toolCall.args, resolve);
+            break;
+          case 'ssh_exec':
+            socket.emit('agent-ssh-exec', { command: toolCall.args.command }, resolve);
+            break;
+          case 'read_file':
+            socket.emit('agent-ssh-read', { path: toolCall.args.path }, resolve);
+            break;
+          case 'write_file':
+            socket.emit('agent-ssh-write', { path: toolCall.args.path, content: toolCall.args.content }, resolve);
+            break;
+          default:
+            resolve({ error: 'Unknown tool' });
+        }
+      });
+    };
+
+    const result = await executeOnBackend();
+    const resultStr = result.error ? `Error: ${result.error}` : (result.output || result.content || result.message || 'Success');
+
+    setSessions(prev => prev.map(s => ({
+      ...s,
+      messages: s.messages.map(m => m.id === messageId ? {
+        ...m,
+        toolCalls: m.toolCalls?.map(tc => tc.id === toolCallId ? { ...tc, status: 'completed', result: resultStr } : tc)
+      } : m)
+    })));
+
+    // 3. Continue the turn: feed result back to Gemini
+    await runAgentTurn(null, activeSession.messages, {
+      id: toolCallId,
+      name: toolCall.name,
+      response: result
+    });
+  };
+
+  const handleRejectTool = (messageId: string, toolCallId: string) => {
+    setSessions(prev => prev.map(s => ({
+      ...s,
+      messages: s.messages.map(m => m.id === messageId ? {
+        ...m,
+        toolCalls: m.toolCalls?.map(tc => tc.id === toolCallId ? { ...tc, status: 'rejected' } : tc)
+      } : m)
+    })));
   };
 
   return (
@@ -195,6 +199,8 @@ const App: React.FC = () => {
       <Sidebar 
         activeProviderId={activeProvider}
         currentView={currentView}
+        isAgentMode={isAgentMode}
+        onToggleAgentMode={() => setIsAgentMode(!isAgentMode)}
         onSelectView={setCurrentView}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onNewChat={handleNewChat}
@@ -207,8 +213,11 @@ const App: React.FC = () => {
             messages={activeSession?.messages || []}
             onSendMessage={handleSendMessage}
             isTyping={isTyping}
+            isAgentMode={isAgentMode}
             onToggleRightSidebar={() => setIsRightSidebarOpen(!isRightSidebarOpen)}
             isRightSidebarOpen={isRightSidebarOpen}
+            onApproveTool={handleApproveTool}
+            onRejectTool={handleRejectTool}
           />
         ) : (
           <TerminalArea />
@@ -222,25 +231,24 @@ const App: React.FC = () => {
           projectFiles={projectFiles}
           onSelectSession={setActiveSessionId}
           onUploadFile={handleFileUpload}
-          onRemoveFile={handleRemoveFile}
+          onRemoveFile={(id) => setProjectFiles(prev => prev.filter(f => f.id !== id))}
           onClose={() => setIsRightSidebarOpen(false)}
         />
       )}
 
       {isModalOpen && currentDeviceFlow && (
-        <DeviceFlowModal 
-          data={currentDeviceFlow} 
-          onClose={() => setIsModalOpen(false)}
-          onComplete={handleAuthComplete}
-        />
+        <DeviceFlowModal data={currentDeviceFlow} onClose={() => setIsModalOpen(false)} onComplete={() => setIsModalOpen(false)} />
       )}
 
       {isSettingsOpen && (
         <SettingsModal 
           providers={providers}
           activeProviderId={activeProvider}
-          onSelectProvider={handleProviderSelect}
-          onLogin={handleLogin}
+          onSelectProvider={setActiveProvider}
+          onLogin={(id) => {
+            setCurrentDeviceFlow({ user_code: 'GH-X-AGENT', verification_uri: 'https://github.com/login/device', device_code: 'x', expires_in: 900, interval: 5 });
+            setIsModalOpen(true);
+          }}
           onClose={() => setIsSettingsOpen(false)}
         />
       )}
