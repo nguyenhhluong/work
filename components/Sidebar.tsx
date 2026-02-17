@@ -34,6 +34,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     fixed inset-y-0 left-0 z-[100] glass-panel transition-all duration-500 ease-in-out
     md:static md:translate-x-0 ${isCollapsed ? 'md:w-20' : 'md:w-64'}
     ${isMobileOpen ? 'translate-x-0 w-[85%] sm:w-72 shadow-[0_0_100px_rgba(0,0,0,1)]' : '-translate-x-full md:translate-x-0'}
+    flex flex-col h-full glow-frame border-r border-white/5 md:m-3 md:rounded-[2rem]
   `;
 
   const NavButton = ({ 
@@ -70,14 +71,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
-      {/* Mobile Backdrop */}
       <div 
-        className={`fixed inset-0 bg-black/60 backdrop-blur-md z-[95] md:hidden transition-opacity duration-500 ${isMobileOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        className={`fixed inset-0 bg-black/40 backdrop-blur-md z-[95] md:hidden transition-opacity duration-500 ${isMobileOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onClick={onMobileClose}
       />
 
       <aside className={sidebarClasses}>
-        <div className="flex items-center justify-between p-6 mb-2">
+        <div className="flex items-center justify-between p-6 mb-2 shrink-0">
           <div className={`flex items-center gap-3 ${isCollapsed && !isMobileOpen ? 'md:justify-center' : ''}`}>
             <div className="w-10 h-10 bg-grok-accent rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(29,155,240,0.4)] transition-transform hover:scale-105">
               <Command size={22} className="text-white" />
@@ -94,13 +94,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
           <button 
             onClick={() => onToggleCollapse(!isCollapsed)}
-            className="hidden md:flex absolute -right-3.5 top-8 p-1.5 bg-black/40 backdrop-blur-xl border border-white/10 rounded-full text-grok-muted hover:text-white transition-all z-50 hover:border-grok-accent/50 group"
+            className="hidden md:flex absolute -right-3 top-8 p-1.5 bg-black/60 backdrop-blur-xl border border-white/10 rounded-full text-grok-muted hover:text-white transition-all z-50 hover:border-grok-accent/50 group"
           >
             <PanelLeft size={14} className={`${isCollapsed ? 'rotate-180' : ''} transition-transform duration-500`} />
           </button>
         </div>
 
-        <div className="px-4 py-2 mb-4">
+        <div className="px-4 py-2 mb-4 shrink-0">
           <button
             onClick={onNewChat}
             className={`w-full flex items-center gap-3 bg-white text-black rounded-full font-black text-[13px] tracking-tight transition-all hover:bg-white/90 active:scale-95 shadow-[0_4px_20px_rgba(255,255,255,0.2)] ${isCollapsed && !isMobileOpen ? 'md:justify-center md:h-12 md:w-12 md:p-0' : 'px-5 py-3.5'}`}
@@ -130,11 +130,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
             label="Agent Engine"
             colorClass="text-grok-success"
             activeBg="bg-grok-success/10 border-grok-success/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]"
-            idleText="text-grok-muted"
           />
         </nav>
 
-        <div className="p-4 border-t border-white/5 space-y-4">
+        <div className="p-4 border-t border-white/5 space-y-4 shrink-0 mt-auto">
           {user && (
             <div className={`p-2 bg-white/5 rounded-2xl border border-white/5 group/user hover:border-grok-accent/30 transition-all cursor-default overflow-hidden relative ${isCollapsed && !isMobileOpen ? 'flex justify-center' : ''}`}>
               <div className="absolute top-0 right-0 w-16 h-16 bg-grok-accent/10 blur-xl opacity-0 group-hover/user:opacity-100 transition-opacity"></div>

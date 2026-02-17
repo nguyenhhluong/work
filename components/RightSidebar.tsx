@@ -21,12 +21,13 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
   const sidebarClasses = `
     fixed inset-y-0 right-0 z-[100] glass-panel transition-transform duration-500 ease-in-out
     md:static md:translate-x-0 ${isOpen ? 'translate-x-0 w-[85%] sm:w-80 shadow-[0_0_100px_rgba(0,0,0,1)]' : 'translate-x-full md:w-0 md:border-none'}
+    flex flex-col h-full glow-frame md:m-3 md:rounded-[2rem]
   `;
 
   return (
     <>
       <div 
-        className={`fixed inset-0 bg-black/60 backdrop-blur-md z-[95] md:hidden transition-opacity duration-500 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        className={`fixed inset-0 bg-black/40 backdrop-blur-md z-[95] md:hidden transition-opacity duration-500 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onClick={() => onToggle(false)}
       />
 

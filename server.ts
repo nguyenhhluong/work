@@ -10,14 +10,14 @@ const hostname = 'localhost';
 const port = 3000;
 
 const SESSION_INACTIVITY_TIMEOUT = 30 * 60 * 1000;
-const GITHUB_CLIENT_ID = '01ab8ac9400c4e429b23'; // Copilot/Grok Client ID
+const GITHUB_CLIENT_ID = '01ab8ac9400c4e429b23'; 
 
 const app = next({ dev, hostname, port });
 const handler = app.getRequestHandler();
 
 app.prepare().then(() => {
   const httpServer = createServer(async (req, res) => {
-    // Handle GitHub Device Flow Start
+    // Auth endpoints for device flow
     if (req.url === '/api/auth/github/start' && req.method === 'POST') {
       try {
         const response = await fetch('https://github.com/login/device/code', {
@@ -31,12 +31,11 @@ app.prepare().then(() => {
         return;
       } catch (e) {
         res.writeHead(500);
-        res.end(JSON.stringify({ error: 'Failed to start device flow' }));
+        res.end(JSON.stringify({ error: 'Auth failed to initialize' }));
         return;
       }
     }
 
-    // Handle GitHub Device Flow Polling
     if (req.url === '/api/auth/github/poll' && req.method === 'POST') {
       let body = '';
       req.on('data', chunk => { body += chunk; });
@@ -57,7 +56,7 @@ app.prepare().then(() => {
           res.end(JSON.stringify(data));
         } catch (e) {
           res.writeHead(500);
-          res.end(JSON.stringify({ error: 'Polling failed' }));
+          res.end(JSON.stringify({ error: 'Polling loop failed' }));
         }
       });
       return;
@@ -71,15 +70,16 @@ app.prepare().then(() => {
     cors: { origin: '*' }
   });
 
-  const sessions = new Map<string, { client: SshClient, timeout: ReturnType<typeof setTimeout> }>();
+  // Keep-alive sessions for Agent Tooling
+  const agentSessions = new Map<string, { client: SshClient, timeout: ReturnType<typeof setTimeout> }>();
 
-  const resetInactivityTimeout = (socketId: string) => {
-    const session = sessions.get(socketId);
+  const resetAgentTimeout = (socketId: string) => {
+    const session = agentSessions.get(socketId);
     if (session) {
       clearTimeout(session.timeout);
       const newTimeout = setTimeout(() => {
         session.client.end();
-        sessions.delete(socketId);
+        agentSessions.delete(socketId);
       }, SESSION_INACTIVITY_TIMEOUT);
       session.timeout = newTimeout;
     }
@@ -88,15 +88,16 @@ app.prepare().then(() => {
   const sshNamespace = io.of('/ssh');
 
   sshNamespace.on('connection', (socket) => {
+    // 1. Agent Tooling Bridge
     socket.on('agent-ssh-connect', (config: any, callback: any) => {
       const client = new SshClient();
       client.on('ready', () => {
         const timeout = setTimeout(() => {
           client.end();
-          sessions.delete(socket.id);
+          agentSessions.delete(socket.id);
         }, SESSION_INACTIVITY_TIMEOUT);
-        sessions.set(socket.id, { client, timeout });
-        callback({ success: true, message: 'Connected to ' + config.host });
+        agentSessions.set(socket.id, { client, timeout });
+        callback({ success: true, message: 'Neural Bridge established to ' + config.host });
       });
       client.on('error', (err) => callback({ success: false, error: err.message }));
       try {
@@ -106,15 +107,15 @@ app.prepare().then(() => {
           username: config.username,
           password: config.password,
           privateKey: config.privateKey ? Buffer.from(config.privateKey) : undefined,
-          readyTimeout: 10000,
+          readyTimeout: 15000,
         });
       } catch (e: any) { callback({ success: false, error: e.message }); }
     });
 
     socket.on('agent-ssh-exec', ({ command }: { command: string }, callback: any) => {
-      const session = sessions.get(socket.id);
-      if (!session) return callback({ error: 'No SSH session active.' });
-      resetInactivityTimeout(socket.id);
+      const session = agentSessions.get(socket.id);
+      if (!session) return callback({ error: 'Target node disconnected. Re-initialize SSH.' });
+      resetAgentTimeout(socket.id);
       session.client.exec(command, (err, stream) => {
         if (err) return callback({ error: err.message });
         let out = '';
@@ -126,21 +127,36 @@ app.prepare().then(() => {
     });
 
     socket.on('agent-ssh-read', ({ path }: { path: string }, callback: any) => {
-      const session = sessions.get(socket.id);
-      if (!session) return callback({ error: 'No SSH session active.' });
-      resetInactivityTimeout(socket.id);
+      const session = agentSessions.get(socket.id);
+      if (!session) return callback({ error: 'Disconnected.' });
+      resetAgentTimeout(socket.id);
       session.client.exec(`cat "${path}"`, (err, stream) => {
         if (err) return callback({ error: err.message });
         let content = '';
+        let stderr = '';
         stream.on('data', (d: Buffer) => content += d.toString());
-        stream.on('close', () => callback({ content }));
+        stream.stderr.on('data', (d: Buffer) => stderr += d.toString());
+        stream.on('close', () => callback({ content, error: stderr || null }));
+      });
+    });
+
+    socket.on('agent-ssh-list-dir', ({ path }: { path: string }, callback: any) => {
+      const session = agentSessions.get(socket.id);
+      if (!session) return callback({ error: 'Disconnected.' });
+      resetAgentTimeout(socket.id);
+      const target = path || '.';
+      session.client.exec(`ls -F "${target}"`, (err, stream) => {
+        if (err) return callback({ error: err.message });
+        let out = '';
+        stream.on('data', (d: Buffer) => out += d.toString());
+        stream.on('close', () => callback({ output: out }));
       });
     });
 
     socket.on('agent-ssh-write', ({ path, content }: { path: string, content: string }, callback: any) => {
-      const session = sessions.get(socket.id);
-      if (!session) return callback({ error: 'No SSH session active.' });
-      resetInactivityTimeout(socket.id);
+      const session = agentSessions.get(socket.id);
+      if (!session) return callback({ error: 'Disconnected.' });
+      resetAgentTimeout(socket.id);
       const b64 = Buffer.from(content).toString('base64');
       session.client.exec(`echo "${b64}" | base64 -d > "${path}"`, (err, stream) => {
         if (err) return callback({ error: err.message });
@@ -149,50 +165,65 @@ app.prepare().then(() => {
     });
 
     socket.on('agent-ssh-disconnect', (callback: any) => {
-      const session = sessions.get(socket.id);
+      const session = agentSessions.get(socket.id);
       if (session) {
         clearTimeout(session.timeout);
         session.client.end();
-        sessions.delete(socket.id);
+        agentSessions.delete(socket.id);
         if (callback) callback({ success: true });
       }
     });
 
-    let shellSsh: SshClient | null = null;
+    // 2. Interactive Shell Bridge
+    let shellClient: SshClient | null = null;
     socket.on('connect-ssh', (config: any) => {
-      shellSsh = new SshClient();
-      shellSsh.on('ready', () => {
+      shellClient = new SshClient();
+      shellClient.on('ready', () => {
         socket.emit('status', 'connected');
         const { cols = 80, rows = 24 } = socket.handshake.query;
-        shellSsh!.shell({ cols: Number(cols), rows: Number(rows), term: 'xterm-256color' }, (err, stream) => {
-          if (err) return socket.emit('error', err.message);
+        shellClient!.shell({ 
+          cols: Number(cols), 
+          rows: Number(rows), 
+          term: 'xterm-256color' 
+        }, (err, stream) => {
+          if (err) return socket.emit('error', 'Shell initiation fault: ' + err.message);
+          
           stream.on('data', (chunk: Buffer) => socket.emit('output', chunk.toString('utf8')));
           socket.on('input', (data: string) => stream.write(data));
-          socket.on('resize', ({ cols, rows }: { cols: number; rows: number }) => stream.setWindow(rows, cols, 0, 0));
+          socket.on('resize', ({ cols, rows }: { cols: number; rows: number }) => {
+            stream.setWindow(rows, cols, 0, 0);
+          });
+          
           stream.on('close', () => {
             socket.emit('disconnected');
             socket.disconnect();
           });
         });
       });
-      shellSsh.on('error', (err) => socket.emit('error', err.message));
+      
+      shellClient.on('error', (err) => socket.emit('error', err.message));
+      
       try {
-        shellSsh.connect({ ...config, privateKey: config.privateKey ? Buffer.from(config.privateKey) : undefined, readyTimeout: 15000 });
-      } catch (e: any) { socket.emit('error', e.message); }
+        shellClient.connect({ 
+          ...config, 
+          privateKey: config.privateKey ? Buffer.from(config.privateKey) : undefined, 
+          readyTimeout: 20000 
+        });
+      } catch (e: any) { socket.emit('error', 'Handshake setup failed: ' + e.message); }
     });
 
     socket.on('disconnect', () => {
-      const session = sessions.get(socket.id);
+      const session = agentSessions.get(socket.id);
       if (session) {
         clearTimeout(session.timeout);
         session.client.end();
-        sessions.delete(socket.id);
+        agentSessions.delete(socket.id);
       }
-      if (shellSsh) shellSsh.end();
+      if (shellClient) shellClient.end();
     });
   });
 
   httpServer.listen(port, () => {
-    console.log(`> OmniChat Ready on http://${hostname}:${port}`);
+    console.log(`> OmniChat Neural Hub v3 listening on http://${hostname}:${port}`);
   });
 });

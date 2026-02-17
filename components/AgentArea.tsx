@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect, memo } from 'react';
 import { Message, ToolCall } from '../types';
 import { IntelligenceMode } from '../services/geminiService';
-import { User, Bot, Loader2, Terminal, Check, X, PanelRight, ArrowUp, Menu, Brain, ShieldAlert, Cpu } from 'lucide-react';
+import { User, Bot, Loader2, Terminal, Check, X, PanelRight, ArrowUp, Menu, Brain, ShieldAlert, Cpu, Power } from 'lucide-react';
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
 
 interface AgentAreaProps {
@@ -20,38 +20,43 @@ interface AgentAreaProps {
 
 const ToolCallCard: React.FC<{ tool: ToolCall, onApprove?: () => void, onReject?: () => void }> = ({ tool, onApprove, onReject }) => {
   return (
-    <div className="mt-4 border rounded-[1.5rem] overflow-hidden bg-black/40 backdrop-blur-md border-white/10 animate-slide-up">
-      <div className="px-5 py-3 border-b border-white/5 flex items-center justify-between bg-white/[0.03]">
+    <div className="mt-4 border rounded-[1.5rem] overflow-hidden bg-[#0a0a0a]/80 backdrop-blur-md border-[#27272a] animate-slide-up shadow-2xl">
+      <div className="px-5 py-3 border-b border-[#27272a] flex items-center justify-between bg-white/[0.02]">
         <div className="flex items-center gap-2">
           <Terminal size={14} className="text-grok-accent" />
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#71717a]">Neural Action Matrix</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#71717a]">Neural Execution Vector</p>
         </div>
-        {tool.status === 'executing' && <Loader2 size={14} className="animate-spin text-grok-accent" />}
+        {tool.status === 'executing' && (
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] font-black text-grok-accent uppercase tracking-widest animate-pulse">Running</span>
+            <Loader2 size={14} className="animate-spin text-grok-accent" />
+          </div>
+        )}
       </div>
       <div className="p-5 space-y-4">
         <div className="flex items-center gap-3 mb-2">
             <div className="w-8 h-8 rounded-lg bg-grok-accent/10 flex items-center justify-center">
                 <Cpu size={16} className="text-grok-accent" />
             </div>
-            <p className="text-sm font-bold text-white uppercase tracking-tight">{tool.name.replace('_', ' ')}</p>
+            <p className="text-sm font-bold text-white uppercase tracking-tight">{tool.name.replace(/_/g, ' ')}</p>
         </div>
-        <pre className="text-[12px] font-mono p-4 bg-black/60 rounded-xl border border-white/5 overflow-x-auto text-[#d4d4d8] custom-scrollbar">
+        <pre className="text-[12px] font-mono p-4 bg-black/60 rounded-xl border border-[#27272a] overflow-x-auto text-[#d4d4d8] custom-scrollbar">
           {tool.name === 'ssh_exec' ? tool.args.command : `${tool.name}(${JSON.stringify(tool.args, null, 2)})`}
         </pre>
         {tool.status === 'pending' && (
-          <div className="flex gap-2">
-            <button onClick={onApprove} className="flex-1 py-3 bg-[#1d9bf0] text-white rounded-xl text-xs font-black uppercase tracking-widest hover:brightness-110 transition-all flex items-center justify-center gap-2 shadow-lg shadow-grok-accent/20">
-              <Check size={16} /> Authorize
+          <div className="flex gap-2 pt-2">
+            <button onClick={onApprove} className="flex-1 py-3 bg-[#1d9bf0] text-white rounded-xl text-xs font-black uppercase tracking-widest hover:brightness-110 transition-all flex items-center justify-center gap-2 shadow-lg shadow-grok-accent/20 active:scale-95">
+              <Check size={16} /> Authorize Execution
             </button>
-            <button onClick={onReject} className="px-5 py-3 bg-white/5 text-[#71717a] border border-white/5 rounded-xl hover:text-white transition-all">
+            <button onClick={onReject} className="px-5 py-3 bg-white/5 text-[#71717a] border border-[#27272a] rounded-xl hover:text-white transition-all active:scale-95">
               <X size={16} /> Abort
             </button>
           </div>
         )}
         {tool.result && (
-          <div className="mt-4 animate-fade-in pt-4 border-t border-white/5">
-            <p className="text-[9px] font-black text-[#71717a] uppercase tracking-widest mb-2">Execution Stream</p>
-            <pre className="text-[11px] font-mono p-4 bg-black/60 rounded-xl border border-white/5 max-h-40 overflow-y-auto text-grok-success custom-scrollbar">
+          <div className="mt-4 animate-fade-in pt-4 border-t border-[#27272a]">
+            <p className="text-[9px] font-black text-[#71717a] uppercase tracking-widest mb-2">Stdout Stream</p>
+            <pre className="text-[11px] font-mono p-4 bg-black/40 rounded-xl border border-[#27272a] max-h-40 overflow-y-auto text-grok-success custom-scrollbar">
               {tool.result}
             </pre>
           </div>
@@ -69,9 +74,9 @@ const MessageItem = memo(({ msg, onApprove, onReject }: { msg: Message, onApprov
       </div>
       <div className="flex-1 min-w-0">
         {msg.thought && (
-            <div className="mb-4 p-4 glass-card border-l-2 border-l-grok-accent rounded-[1rem] bg-black/40 backdrop-blur-md italic text-sm text-[#71717a] animate-fade-in flex items-start gap-3">
-                <Brain size={14} className="mt-1 shrink-0 text-grok-accent animate-pulse" />
-                <p>{msg.thought}</p>
+            <div className="mb-4 p-5 bg-[#111111] border border-[#27272a] rounded-[1.5rem] italic text-[13px] text-[#71717a] animate-fade-in flex items-start gap-4 shadow-inner">
+                <Brain size={16} className="mt-0.5 shrink-0 text-grok-accent/50 animate-pulse" />
+                <p className="leading-relaxed opacity-80">{msg.thought}</p>
             </div>
         )}
         <div className={`p-4 md:p-5 rounded-[1.5rem] leading-relaxed transition-all ${msg.role === 'user' ? 'bg-[#1d9bf0]/10 border border-[#1d9bf0]/20 text-white shadow-xl' : 'text-[#e4e4e7]'}`}>
@@ -101,13 +106,33 @@ export const AgentArea: React.FC<AgentAreaProps> = ({
 
   useEffect(() => { if (!isTyping) textareaRef.current?.focus(); }, [isTyping]);
 
-  // Mock initial session content if empty
   const displayMessages = messages.length > 0 ? messages : [
     {
         id: 'welcome',
         role: 'assistant',
-        content: "OmniCore Agent System Online. I am authorized to execute autonomous infrastructure tasks. Please provide a high-level objective (e.g., 'Deploy Nginx to remote host 1.2.3.4').",
+        content: "OmniCore Agent System Synchronized. I am standing by for autonomous infrastructure objectives. Example: 'Deploy my Node.js application to the staging server at 142.250.190.46'.",
         timestamp: new Date()
+    },
+    {
+        id: 'demo-user',
+        role: 'user',
+        content: "Check server status and list active docker containers on 1.2.3.4",
+        timestamp: new Date()
+    },
+    {
+        id: 'demo-agent',
+        role: 'assistant',
+        thought: "Objective received. Initializing SSH handshake with node 1.2.3.4. I will first establish connectivity, then execute container enumeration via 'docker ps'.",
+        content: "Beginning infrastructure scan on node 1.2.3.4. Awaiting authorization for SSH link.",
+        timestamp: new Date(),
+        toolCalls: [
+            {
+                id: 'tc-1',
+                name: 'connect_ssh',
+                args: { host: '1.2.3.4', username: 'root', port: 22 },
+                status: 'pending'
+            }
+        ]
     }
   ] as Message[];
 
@@ -124,7 +149,7 @@ export const AgentArea: React.FC<AgentAreaProps> = ({
             </h2>
             <div className="flex items-center gap-1.5 opacity-60">
                <div className="w-1.5 h-1.5 bg-grok-success rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.4)]"></div>
-               <span className="text-[9px] text-white font-black uppercase tracking-[0.2em]">OMNICORE (GEMINI)</span>
+               <span className="text-[9px] text-white font-black uppercase tracking-[0.2em]">AUTONOMOUS MODE</span>
             </div>
           </div>
         </div>
@@ -197,9 +222,9 @@ export const AgentArea: React.FC<AgentAreaProps> = ({
             {isTyping ? (
                  <button
                     onClick={() => {}} 
-                    className="px-6 py-2 bg-grok-error/20 text-grok-error border border-grok-error/40 rounded-full flex items-center justify-center hover:bg-grok-error/30 transition-all shrink-0 mr-1 relative z-10 active:scale-95 text-[10px] font-black uppercase tracking-widest"
+                    className="px-6 py-2 bg-grok-error/20 text-grok-error border border-grok-error/40 rounded-full flex items-center justify-center hover:bg-grok-error/30 transition-all shrink-0 mr-1 relative z-10 active:scale-95 text-[10px] font-black uppercase tracking-widest flex items-center gap-2"
                 >
-                    Stop Agent
+                    <Power size={14} /> Stop
                 </button>
             ) : (
                 <button

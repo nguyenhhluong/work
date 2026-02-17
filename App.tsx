@@ -8,9 +8,9 @@ import { TerminalArea } from './components/TerminalArea';
 import { SettingsModal } from './components/SettingsModal';
 import { DeviceFlowModal } from './components/DeviceFlowModal';
 import { AIProviderId, ProviderInfo, Message, ChatSession, ProjectFile, AppView, Session, User, DeviceFlowResponse } from './types';
-import { GeminiService, IntelligenceMode } from './services/geminiService';
+import { GeminiService, IntelligenceMode, AgentSettings } from './services/geminiService';
 import { io, Socket } from 'socket.io-client';
-import { Command, Mail, Lock, User as UserIcon, ArrowRight, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { Command, Mail, Lock, User as UserIcon, ArrowRight } from 'lucide-react';
 
 const App: React.FC = () => {
   const [session, setSession] = useState<Session | null>(null);
@@ -26,19 +26,25 @@ const App: React.FC = () => {
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Agent Specific Config
+  // Agent Matrix Control States
   const [agentSafetyLevel, setAgentSafetyLevel] = useState<'low' | 'medium' | 'high'>('medium');
   const [agentAlwaysAsk, setAgentAlwaysAsk] = useState(true);
+  const [toolPermissions, setToolPermissions] = useState({
+    terminal: true,
+    files: true,
+    search: false,
+    compute: true
+  });
   
   const [connectedProviders, setConnectedProviders] = useState<Record<string, boolean>>({
     [AIProviderId.GEMINI]: true,
   });
 
   const providers: ProviderInfo[] = useMemo(() => [
-    { id: AIProviderId.GEMINI, name: 'OmniCore (Gemini)', description: 'The primary system reasoning backbone.', models: ['gemini-3-pro-preview', 'gemini-3-flash-preview'], icon: '✨', isConnected: !!connectedProviders[AIProviderId.GEMINI] },
-    { id: AIProviderId.COPILOT, name: 'GitHub Copilot', description: 'Connect to GitHub for coding intelligence.', models: ['gpt-4o'], icon: '🐙', isConnected: !!connectedProviders[AIProviderId.COPILOT] },
-    { id: AIProviderId.OPENAI, name: 'OpenAI GPT', description: 'Legacy reasoning with enterprise keys.', models: ['gpt-4o', 'o1-preview'], icon: '🧠', isConnected: !!connectedProviders[AIProviderId.OPENAI] },
-    { id: AIProviderId.GROK, name: 'xAI Grok', description: 'Direct Grok-3 infrastructure linkage.', models: ['grok-3'], icon: '✖️', isConnected: !!connectedProviders[AIProviderId.GROK] },
+    { id: AIProviderId.GEMINI, name: 'OmniCore (Gemini)', description: 'Primary system reasoning backbone.', models: ['gemini-3-pro-preview', 'gemini-3-flash-preview'], icon: '✨', isConnected: !!connectedProviders[AIProviderId.GEMINI] },
+    { id: AIProviderId.COPILOT, name: 'GitHub Copilot', description: 'GitHub intelligence link.', models: ['gpt-4o'], icon: '🐙', isConnected: !!connectedProviders[AIProviderId.COPILOT] },
+    { id: AIProviderId.OPENAI, name: 'OpenAI GPT', description: 'Enterprise keys connection.', models: ['gpt-4o', 'o1-preview'], icon: '🧠', isConnected: !!connectedProviders[AIProviderId.OPENAI] },
+    { id: AIProviderId.GROK, name: 'xAI Grok', description: 'Grok-3 infrastructure link.', models: ['grok-3'], icon: '✖️', isConnected: !!connectedProviders[AIProviderId.GROK] },
   ], [connectedProviders]);
 
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -50,21 +56,22 @@ const App: React.FC = () => {
   const [activeDeviceFlow, setActiveDeviceFlow] = useState<DeviceFlowResponse | null>(null);
 
   const socketRef = useRef<Socket | null>(null);
+  const isStoppingRef = useRef(false);
 
   useEffect(() => {
     const recoverSession = async () => {
       try {
-        const storedIdentity = localStorage.getItem('omnichat_user_v2');
-        const storedProviders = localStorage.getItem('omnichat_provider_sync');
+        const storedIdentity = localStorage.getItem('omnichat_user_v3_secure');
+        const storedProviders = localStorage.getItem('omnichat_provider_sync_v3');
         if (storedProviders) setConnectedProviders(JSON.parse(storedProviders));
         if (storedIdentity) {
           const user = JSON.parse(storedIdentity);
           setSession({ user, expires: 'never' });
         }
       } catch (err) {
-        console.warn("Security Handshake Refused.");
+        console.warn("Security handshake disrupted.");
       } finally {
-        setTimeout(() => setAuthLoading(false), 1500);
+        setTimeout(() => setAuthLoading(false), 1200);
       }
     };
     recoverSession();
@@ -81,15 +88,15 @@ const App: React.FC = () => {
         email: 'operator@omnicore.ai', 
         image: `https://api.dicebear.com/7.x/avataaars/svg?seed=${Math.random()}` 
       };
-      localStorage.setItem('omnichat_user_v2', JSON.stringify(user));
+      localStorage.setItem('omnichat_user_v3_secure', JSON.stringify(user));
       setSession({ user, expires: 'never' });
       setAuthLoading(false);
     }, 1000);
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('omnichat_user_v2');
-    localStorage.removeItem('omnichat_provider_sync');
+    localStorage.removeItem('omnichat_user_v3_secure');
+    localStorage.removeItem('omnichat_provider_sync_v3');
     setSession(null);
     setIsSettingsOpen(false);
     setSessions([]);
@@ -105,10 +112,10 @@ const App: React.FC = () => {
         setActiveDeviceFlow(data);
         pollProviderLink(data.device_code, providerId);
       } catch (e) {
-        setAuthError("Handshake with external portal failed.");
+        setAuthError("Auth gateway handshake failed.");
       }
     } else if (providerId === AIProviderId.OPENAI) {
-      const key = prompt("Enter OpenAI API Key:");
+      const key = prompt("Enter Neural API Key (OpenAI):");
       if (key) updateProviderConnection(providerId, true);
     }
   };
@@ -116,7 +123,11 @@ const App: React.FC = () => {
   const pollProviderLink = async (deviceCode: string, providerId: AIProviderId) => {
     const interval = setInterval(async () => {
       try {
-        const res = await fetch('/api/auth/github/poll', { method: 'POST', body: JSON.stringify({ device_code: deviceCode }) });
+        const res = await fetch('/api/auth/github/poll', { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ device_code: deviceCode }) 
+        });
         const data = await res.json();
         if (data.access_token) {
           clearInterval(interval);
@@ -127,14 +138,16 @@ const App: React.FC = () => {
           clearInterval(interval);
           setActiveDeviceFlow(null);
         }
-      } catch (e) { clearInterval(interval); }
+      } catch (e) { 
+        clearInterval(interval); 
+      }
     }, 5000);
   };
 
   const updateProviderConnection = (id: string, status: boolean) => {
     setConnectedProviders(prev => {
       const next = { ...prev, [id]: status };
-      localStorage.setItem('omnichat_provider_sync', JSON.stringify(next));
+      localStorage.setItem('omnichat_provider_sync_v3', JSON.stringify(next));
       return next;
     });
   };
@@ -151,7 +164,7 @@ const App: React.FC = () => {
     const newSession: ChatSession = {
       id: Date.now().toString(),
       providerId: activeProvider,
-      title: currentView === AppView.AGENT ? 'Agent Workflow Session' : 'Active Link Session',
+      title: currentView === AppView.AGENT ? 'Autonomous Objective' : 'Neural Conversation',
       messages: [],
       createdAt: new Date(),
       isAgentMode: currentView === AppView.AGENT
@@ -165,16 +178,24 @@ const App: React.FC = () => {
   const activeSession = useMemo(() => sessions.find(s => s.id === activeSessionId) || sessions[0], [sessions, activeSessionId]);
 
   const runAgentTurn = async (prompt: string | null, history: Message[], toolResponse?: any) => {
+    if (isStoppingRef.current) return;
     setIsTyping(true);
     try {
       const isAgent = currentView === AppView.AGENT || isAgentMode;
-      const response = await GeminiService.chat(prompt, history, projectFiles, isAgent, intelligenceMode, toolResponse);
+      const agentSettings: AgentSettings = {
+        safetyLevel: agentSafetyLevel,
+        alwaysAsk: agentAlwaysAsk,
+        toolPermissions
+      };
+
+      const response = await GeminiService.chat(prompt, history, projectFiles, isAgent, intelligenceMode, agentSettings, toolResponse);
+      
       const assistantMessage: Message = {
         id: (Date.now() + Math.random()).toString(),
         role: 'assistant',
         content: response.text,
         timestamp: new Date(),
-        thought: response.text.includes('thinking') ? "Analyzing current link infrastructure and optimizing for remote execution..." : undefined,
+        thought: response.toolCalls?.length ? "Processing multi-step objective..." : undefined,
         toolCalls: response.toolCalls?.map((tc: any) => ({
           id: tc.id || Math.random().toString(36).substr(2, 9),
           name: tc.name,
@@ -182,9 +203,21 @@ const App: React.FC = () => {
           status: 'pending' as const
         }))
       };
+
       setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, messages: [...s.messages, assistantMessage] } : s));
+
+      // Automated loop for low-risk actions if alwaysAsk is false
+      if (assistantMessage.toolCalls?.length && !agentAlwaysAsk && !isStoppingRef.current) {
+        // Logic: if non-destructive, auto-approve
+        const canAutoApprove = assistantMessage.toolCalls.every(tc => ['list_dir', 'read_file', 'connect_ssh'].includes(tc.name));
+        if (canAutoApprove || agentSafetyLevel === 'low') {
+           for (const tc of assistantMessage.toolCalls) {
+              await handleApproveTool(assistantMessage.id, tc.id);
+           }
+        }
+      }
     } catch (error) {
-      console.error("Neural Reasoning Fault:", error);
+      console.error("Neural reasoning link failed:", error);
     } finally {
       setIsTyping(false);
     }
@@ -192,6 +225,7 @@ const App: React.FC = () => {
 
   const handleSendMessage = async (text: string) => {
     if (!activeSessionId) return;
+    isStoppingRef.current = false;
     const newMessage: Message = { id: Date.now().toString(), role: 'user', content: text, timestamp: new Date() };
     const updatedHistory = [...(activeSession?.messages || []), newMessage];
     setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, messages: updatedHistory } : s));
@@ -199,10 +233,19 @@ const App: React.FC = () => {
   };
 
   const handleApproveTool = async (messageId: string, toolCallId: string) => {
-    const currentMessage = activeSession.messages.find(m => m.id === messageId);
+    let currentSessionMessages: Message[] = [];
+    setSessions(prev => {
+        const sess = prev.find(s => s.id === activeSessionId);
+        if (sess) currentSessionMessages = sess.messages;
+        return prev;
+    });
+
+    const currentMessage = currentSessionMessages.find(m => m.id === messageId);
     const toolCall = currentMessage?.toolCalls?.find(tc => tc.id === toolCallId);
+    
     if (!toolCall || !socketRef.current) return;
 
+    // Set executing state
     setSessions(prev => prev.map(s => ({
       ...s,
       messages: s.messages.map(m => m.id === messageId ? {
@@ -219,30 +262,32 @@ const App: React.FC = () => {
           case 'ssh_exec': socket.emit('agent-ssh-exec', { command: toolCall.args.command }, resolve); break;
           case 'read_file': socket.emit('agent-ssh-read', { path: toolCall.args.path }, resolve); break;
           case 'write_file': socket.emit('agent-ssh-write', { path: toolCall.args.path, content: toolCall.args.content }, resolve); break;
+          case 'list_dir': socket.emit('agent-ssh-list-dir', { path: toolCall.args.path }, resolve); break;
           case 'end_agent': socket.emit('agent-ssh-disconnect', resolve); break;
-          default: resolve({ error: 'Tool not supported.' });
+          default: resolve({ error: 'Tool capability not linked to backend.' });
         }
       });
     };
 
     const result = await executeOnBackend();
-    const resultStr = result.error ? `Error: ${result.error}` : (result.output || result.content || result.message || 'Success');
+    const resultStr = result.error ? `Error: ${result.error}` : (result.output || result.content || result.message || 'Operation Synchronized.');
 
-    setSessions(prev => prev.map(s => ({
-      ...s,
-      messages: s.messages.map(m => m.id === messageId ? {
-        ...m,
-        toolCalls: m.toolCalls?.map(tc => tc.id === toolCallId ? { ...tc, status: 'completed' as const, result: resultStr } : tc)
-      } : m)
-    })));
-
-    if (toolCall.name !== 'end_agent') {
-      const updatedMessages = activeSession.messages.map(m => m.id === messageId ? {
-        ...m,
-        toolCalls: m.toolCalls?.map(tc => tc.id === toolCallId ? { ...tc, status: 'completed' as const, result: resultStr } : tc)
-      } : m);
-      await runAgentTurn(null, updatedMessages, { id: toolCallId, name: toolCall.name, response: result });
-    }
+    setSessions(prev => {
+        const updated = prev.map(s => ({
+            ...s,
+            messages: s.messages.map(m => m.id === messageId ? {
+              ...m,
+              toolCalls: m.toolCalls?.map(tc => tc.id === toolCallId ? { ...tc, status: 'completed' as const, result: resultStr } : tc)
+            } : m)
+          }));
+        
+        const finalSession = updated.find(s => s.id === activeSessionId);
+        if (finalSession && !isStoppingRef.current) {
+            // Recursive turn: feeding result back to model
+            runAgentTurn(null, finalSession.messages, { id: toolCallId, name: toolCall.name, response: result });
+        }
+        return updated;
+    });
   };
 
   const handleRejectTool = (messageId: string, toolCallId: string) => {
@@ -271,13 +316,13 @@ const App: React.FC = () => {
       <div className="flex h-screen w-full bg-black items-center justify-center">
         <div className="flex flex-col items-center gap-8 px-6 text-center animate-pulse">
           <div className="relative">
-            <div className="absolute inset-0 bg-grok-accent/30 blur-[60px]"></div>
+            <div className="absolute inset-0 bg-[#1d9bf0]/20 blur-[60px]"></div>
             <div className="w-16 h-16 bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl flex items-center justify-center relative z-10">
-              <Command size={32} className="text-grok-accent" />
+              <Command size={32} className="text-[#1d9bf0]" />
             </div>
           </div>
           <div>
-            <p className="text-[10px] text-grok-muted font-black uppercase tracking-[0.4em]">Initializing OmniCore Matrix</p>
+            <p className="text-[10px] text-grok-muted font-black uppercase tracking-[0.4em]">Establishing Matrix Sync...</p>
           </div>
         </div>
       </div>
@@ -287,13 +332,10 @@ const App: React.FC = () => {
   if (!session) {
     return (
       <div className="flex h-screen w-full bg-black items-center justify-center p-4 md:p-6 relative overflow-hidden">
-        {/* Animated decorative shapes */}
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-grok-accent/5 rounded-full blur-[120px] animate-float"></div>
-        <div className="absolute bottom-[-10%] right-[-10%] w-[30%] h-[30%] bg-[#1d9bf0]/10 rounded-full blur-[100px] animate-float" style={{ animationDelay: '3s' }}></div>
-
-        <div className="max-w-md w-full glass-panel rounded-[2.5rem] p-8 md:p-12 shadow-[0_0_100px_rgba(0,0,0,0.8)] relative z-20 overflow-hidden animate-in zoom-in-95 duration-500">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-[#1d9bf0]/5 rounded-full blur-[120px] animate-float"></div>
+        <div className="max-w-md w-full glass-panel rounded-[2.5rem] p-8 md:p-12 shadow-[0_0_100px_rgba(0,0,0,0.8)] relative z-20 animate-in zoom-in-95 duration-500">
           <div className="flex flex-col items-center mb-10 text-center">
-            <div className="w-16 h-16 bg-[#1d9bf0] rounded-2xl flex items-center justify-center mb-6 shadow-[0_0_40px_rgba(29,155,240,0.4)] transition-transform hover:scale-105 duration-500">
+            <div className="w-16 h-16 bg-[#1d9bf0] rounded-2xl flex items-center justify-center mb-6 shadow-[0_0_40px_rgba(29,155,240,0.4)]">
               <Command size={32} className="text-white" />
             </div>
             <h2 className="text-3xl md:text-4xl font-black text-white tracking-tighter mb-2">OMNICHAT</h2>
@@ -301,35 +343,23 @@ const App: React.FC = () => {
           </div>
 
           <form onSubmit={handleAppAuthSubmit} className="space-y-6">
-            {authMode === 'signup' && (
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-[#71717a] uppercase tracking-wider ml-1">Identity Tag</label>
-                <div className="relative group">
-                  <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-[#71717a] group-focus-within:text-[#1d9bf0] transition-colors" size={16} />
-                  <input type="text" required placeholder="Full Name" className="w-full bg-black/40 border border-[#27272a] rounded-2xl py-4 pl-12 pr-4 text-sm font-medium text-white focus:ring-1 focus:ring-[#1d9bf0] focus:border-[#1d9bf0] outline-none transition-all placeholder:text-[#71717a]/40" />
-                </div>
-              </div>
-            )}
-            
             <div className="space-y-2">
               <label className="text-[10px] font-black text-[#71717a] uppercase tracking-wider ml-1">Nexus Node</label>
               <div className="relative group">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-[#71717a] group-focus-within:text-[#1d9bf0] transition-colors" size={16} />
-                <input type="email" required placeholder="nexus@omnicore.ai" className="w-full bg-black/40 border border-[#27272a] rounded-2xl py-4 pl-12 pr-4 text-sm font-medium text-white focus:ring-1 focus:ring-[#1d9bf0] focus:border-[#1d9bf0] outline-none transition-all placeholder:text-[#71717a]/40" />
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-[#71717a] group-focus-within:text-[#1d9bf0]" size={16} />
+                <input type="email" required placeholder="nexus@omnicore.ai" className="w-full bg-black/40 border border-[#27272a] rounded-2xl py-4 pl-12 pr-4 text-sm font-medium text-white focus:ring-1 focus:ring-[#1d9bf0] outline-none transition-all" />
               </div>
             </div>
 
             <div className="space-y-2">
               <label className="text-[10px] font-black text-[#71717a] uppercase tracking-wider ml-1">Secure Passkey</label>
               <div className="relative group">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-[#71717a] group-focus-within:text-[#1d9bf0] transition-colors" size={16} />
-                <input type="password" required placeholder="••••••••••••" className="w-full bg-black/40 border border-[#27272a] rounded-2xl py-4 pl-12 pr-4 text-sm font-medium text-white focus:ring-1 focus:ring-[#1d9bf0] focus:border-[#1d9bf0] outline-none transition-all placeholder:text-[#71717a]/40" />
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-[#71717a] group-focus-within:text-[#1d9bf0]" size={16} />
+                <input type="password" required placeholder="••••••••••••" className="w-full bg-black/40 border border-[#27272a] rounded-2xl py-4 pl-12 pr-4 text-sm font-medium text-white focus:ring-1 focus:ring-[#1d9bf0] outline-none transition-all" />
               </div>
             </div>
 
-            {authError && <div className="p-3 bg-grok-error/10 border border-grok-error/20 rounded-xl text-grok-error text-[11px] font-bold text-center">{authError}</div>}
-
-            <button type="submit" className="w-full py-4.5 bg-[#1d9bf0] text-white font-bold rounded-full hover:bg-[#1a8cd8] hover:shadow-[0_0_20px_rgba(29,155,240,0.3)] transition-all active:scale-[0.98] flex items-center justify-center gap-3 group mt-4 text-[15px]">
+            <button type="submit" className="w-full py-4.5 bg-[#1d9bf0] text-white font-bold rounded-full hover:bg-[#1a8cd8] shadow-xl transition-all flex items-center justify-center gap-3 group mt-4">
               {authMode === 'signin' ? 'Verify Identity' : 'Initialize Profile'} 
               <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
             </button>
@@ -340,58 +370,10 @@ const App: React.FC = () => {
               {authMode === 'signin' ? "No Operator ID? Create One" : "Already Verified? Sign In"}
             </button>
           </div>
-          
-          <div className="mt-10 pt-8 border-t border-white/5 flex items-center justify-between opacity-50">
-             <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-[#71717a]">
-               <ShieldCheck size={14} className="text-grok-success" /> Handshake Secure
-             </div>
-             <p className="text-[10px] text-[#71717a] font-mono tracking-tighter uppercase">MATRIX v3.2-PRO</p>
-          </div>
         </div>
       </div>
     );
   }
-
-  const renderView = () => {
-    switch(currentView) {
-      case AppView.CHAT:
-        return (
-          <ChatArea 
-            provider={providers.find(p => p.id === activeProvider)!}
-            messages={activeSession?.messages || []}
-            onSendMessage={handleSendMessage}
-            isTyping={isTyping}
-            isAgentMode={isAgentMode}
-            intelligenceMode={intelligenceMode}
-            onSetIntelligenceMode={setIntelligenceMode}
-            onToggleRightSidebar={() => setIsRightSidebarOpen(!isRightSidebarOpen)}
-            isRightSidebarOpen={isRightSidebarOpen}
-            onApproveTool={handleApproveTool}
-            onRejectTool={handleRejectTool}
-            onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
-          />
-        );
-      case AppView.AGENT:
-        return (
-          <AgentArea 
-            messages={activeSession?.messages || []}
-            onSendMessage={handleSendMessage}
-            isTyping={isTyping}
-            intelligenceMode={intelligenceMode}
-            onSetIntelligenceMode={setIntelligenceMode}
-            onToggleRightSidebar={() => setIsRightSidebarOpen(!isRightSidebarOpen)}
-            isRightSidebarOpen={isRightSidebarOpen}
-            onApproveTool={handleApproveTool}
-            onRejectTool={handleRejectTool}
-            onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
-          />
-        );
-      case AppView.TERMINAL:
-        return <TerminalArea onOpenMobileMenu={() => setIsMobileMenuOpen(true)} />;
-      default:
-        return null;
-    }
-  };
 
   return (
     <div className="flex h-screen w-full bg-transparent overflow-hidden text-grok-foreground flex-col md:flex-row">
@@ -413,7 +395,37 @@ const App: React.FC = () => {
       />
       
       <main className="flex-1 flex flex-col min-w-0 bg-transparent relative z-0 h-full overflow-hidden">
-        {renderView()}
+        {currentView === AppView.CHAT && (
+          <ChatArea 
+            provider={providers.find(p => p.id === activeProvider)!}
+            messages={activeSession?.messages || []}
+            onSendMessage={handleSendMessage}
+            isTyping={isTyping}
+            isAgentMode={isAgentMode}
+            intelligenceMode={intelligenceMode}
+            onSetIntelligenceMode={setIntelligenceMode}
+            onToggleRightSidebar={() => setIsRightSidebarOpen(!isRightSidebarOpen)}
+            isRightSidebarOpen={isRightSidebarOpen}
+            onApproveTool={(m, t) => handleApproveTool(m, t)}
+            onRejectTool={handleRejectTool}
+            onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
+          />
+        )}
+        {currentView === AppView.AGENT && (
+          <AgentArea 
+            messages={activeSession?.messages || []}
+            onSendMessage={handleSendMessage}
+            isTyping={isTyping}
+            intelligenceMode={intelligenceMode}
+            onSetIntelligenceMode={setIntelligenceMode}
+            onToggleRightSidebar={() => setIsRightSidebarOpen(!isRightSidebarOpen)}
+            isRightSidebarOpen={isRightSidebarOpen}
+            onApproveTool={(m, t) => handleApproveTool(m, t)}
+            onRejectTool={handleRejectTool}
+            onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
+          />
+        )}
+        {currentView === AppView.TERMINAL && <TerminalArea onOpenMobileMenu={() => setIsMobileMenuOpen(true)} />}
       </main>
 
       <RightSidebar 
