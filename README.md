@@ -1,77 +1,68 @@
-# 🌌 OmniChat: Unified AI & SSH Autonomous Agent
+# 🌌 HEIFI Neural Interface: Matrix v3
 
-OmniChat is a high-performance, enterprise-grade interface that bridges the gap between Large Language Models and infrastructure management. Built with **Next.js 15**, **Socket.io**, and the **Gemini 3 API**, it transforms a standard chat interface into an autonomous DevOps companion.
+HEIFI is a high-fidelity, enterprise-grade command center that bridges Large Language Models with infrastructure orchestration. Designed for the "Power Operator," it offers a unified interface for AI reasoning and autonomous SSH workflows.
 
-![OmniChat Banner](https://img.shields.io/badge/OmniChat-Autonomous_DevOps-blue?style=for-the-badge&logo=google-gemini)
+![HEIFI Interface](https://img.shields.io/badge/HEIFI-Neural_Interface-white?style=for-the-badge&logo=google-gemini)
 
-## 🚀 Key Features
+## 🎨 Design Language & Theming
 
-### 🤖 Autonomous Agent Mode
-Toggle **Agent Mode** to give the AI reasoning capabilities over your infrastructure. Using a sophisticated tool-calling loop, the agent can:
-- **SSH Connectivity**: Securely connect to remote VPS or Bare Metal.
-- **File System Operations**: Read, write, and list directories for code analysis.
-- **Command Execution**: Run git ops, deployment scripts, or system audits.
-- **Safety First**: Human-in-the-loop (HITL) approval for destructive commands.
+The **HEIFI Matrix v3** aesthetic is built on a "Premium Industrial" design language, prioritizing high-density information without visual clutter.
 
-### 🔐 Unified AI Connectors
-One interface to rule them all. Switch between:
-- **Gemini 2.5/3 Pro**: The core reasoning engine for autonomous tasks.
-- **GitHub Copilot / Grok**: Integrated via OAuth 2.0 Device Flow.
-- **OpenAI**: Native support for GPT-4o and O1-preview.
+### Color Palette
+- **Obsidian Backbone**: `#000000` (Pure Black) for maximum contrast and OLED optimization.
+- **Neural Accents**: `#1d9bf0` (Grok Blue) for primary interactive elements and active neural links.
+- **Semantic Feedback**:
+  - `Success`: `#10b981` (Emerald) for successful handshakes and stable links.
+  - `Error`: `#ef4444` (Rose Red) for critical faults and security breaches.
+- **Typography**: 
+  - `Sans`: **Inter** for clean, readable UI labels.
+  - `Mono`: **Geist Mono** for code, terminal streams, and low-level logical identifiers.
 
-### 💻 Integrated Cloud Terminal
-A full-featured **Xterm.js** terminal bridge.
-- Encrypted SSH tunnel via backend Node.js proxy.
-- Low-latency input/output streaming.
-- Supports Private Key (RSA/Ed25519) and Password auth.
+### Visual Effects
+- **Glassmorphism 2.0**: Uses deep `backdrop-blur(45px)` combined with low-opacity backgrounds (`rgba(10, 10, 10, 0.15)`) to create a sense of depth and focus.
+- **Ambient Mesh**: A fixed radial gradient system (`radial-gradient`) simulates an ambient glow emanating from the corners of the interface, reducing eye strain in dark environments.
+- **Glow-Pulse Feedback**: Interactive cards use a custom `glowPulse` animation that shifts border-color and box-shadow based on system state.
 
-## 🏗️ Technical Architecture
+## 🚀 Core Technology Stack
 
-- **Frontend**: React 19 + Tailwind CSS + Lucide Icons.
-- **Backend**: Custom Node.js Server (Next.js custom server) for real-time Socket.io handling.
-- **Engine**: Google Gemini 3 (Pro Preview) for advanced tool-calling and long-context reasoning.
-- **Communication**: WebSockets for terminal streams and tool execution status.
+### Intelligence Layer
+- **Google Gemini 3 API**: Specifically **Gemini 3 Pro Preview** for its superior tool-calling accuracy and **Gemini 2.5 Flash** for high-speed advisory tasks.
+- **Thinking Budget**: Leverages the model's reasoning tokens (up to 32k) for "Deep Mode" architectural planning.
+- **Local Neural Bridge**: Native integration for **Ollama** and **LM Studio** via a custom local proxy.
 
-## 🛠️ Quick Start (Development)
+### Orchestration & Communication
+- **Real-time Streams**: **Socket.io** handles the low-latency duplex stream between the browser and remote SSH targets.
+- **SSH Logic**: Powered by the **ssh2** library on the backend, supporting RSA/Ed25519 keys and password-based auth.
+- **Terminal UI**: **Xterm.js** with `FitAddon` and `WebLinksAddon` for a native-feeling TTY experience.
 
-1. **Clone & Install**:
-   ```bash
-   npm install
-   ```
+### Frontend Architecture
+- **React 19**: Utilizing the latest concurrent rendering features.
+- **Tailwind CSS**: Custom configuration extending Grok-style spacing and animations.
+- **React Virtuoso**: High-performance virtualization for infinite chat history and agent reasoning logs.
+- **Lucide Icons**: Feather-weight vector iconography for clear operational signals.
 
-2. **Environment Setup**:
-   Create a `.env` file in the root:
-   ```env
-   API_KEY=your_gemini_api_key
-   ```
+## 🏗️ Architectural Breakdown
 
-3. **Run Dev Server**:
-   ```bash
-   npm run dev
-   ```
+### 1. The Autonomous Loop
+When in **Agent Mode**, HEIFI enters a recursive reasoning loop:
+1. **Perception**: The model analyzes the user's objective and current file system state.
+2. **Planning**: It emits `functionCall` objects (e.g., `list_dir`, `read_file`).
+3. **Validation**: The UI presents these actions to the operator (Human-in-the-Loop).
+4. **Execution**: The backend executes the command via the established SSH socket.
+5. **Synthesis**: The output is fed back into the model to refine the next step.
 
-## 🚢 1-Click Deployment (Production)
+### 2. Security Enclave
+- **Zero-Knowledge Auth**: Credentials (SSH keys/passwords) are held in ephemeral memory and never persisted to a database.
+- **RSA-4096 Encryption**: All device-flow links (GitHub/Copilot) use standard OAuth 2.0 security protocols.
+- **Termination Purge**: Clicking "Terminate Node" triggers a complete memory sweep of the socket session on the backend.
 
-### Option 1: Docker (Recommended)
-OmniChat is fully containerized. To deploy to any cloud provider with Docker support:
+## 🛠️ Operational Commands
 
-```bash
-chmod +x deploy.sh
-./deploy.sh
-```
+| Command | Description |
+| :--- | :--- |
+| `npm run dev` | Initialize local neural hub and next.js server. |
+| `npm run build` | Compile the matrix for production deployment. |
+| `docker-compose up` | Launch the fully containerized HEIFI stack. |
 
-### Option 2: Manual Production Build
-```bash
-npm run build
-npm start
-```
-
-## 🛡️ Security Policy
-
-- **Ephemeral Sessions**: SSH credentials and AI session tokens are held strictly in memory.
-- **Backend Proxy**: Your browser never communicates directly with your remote servers via SSH; all traffic is proxied through an encrypted backend tunnel.
-- **HITL Verification**: Critical agent actions require explicit user approval (Approve/Reject) to prevent unintended infrastructure changes.
-
-## 📝 License
-
-OmniChat is open-source software licensed under the MIT License.
+---
+*HEIFI: The thin layer between human intent and machine execution.*
