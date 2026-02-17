@@ -7,10 +7,11 @@ import { RightSidebar } from './components/RightSidebar';
 import { TerminalArea } from './components/TerminalArea';
 import { SettingsModal } from './components/SettingsModal';
 import { DeviceFlowModal } from './components/DeviceFlowModal';
-import { AIProviderId, ProviderInfo, Message, ChatSession, ProjectFile, AppView, Session, User, DeviceFlowResponse } from './types';
+import { AIProviderId, ProviderInfo, Message, ChatSession, ProjectFile, AppView, Session, User, DeviceFlowResponse, LocalProviderConfig } from './types';
 import { GeminiService, IntelligenceMode, AgentSettings } from './services/geminiService';
+import { LocalAiService } from './services/localAiService';
 import { io, Socket } from 'socket.io-client';
-import { Mail, Lock, User as UserIcon, ArrowRight } from 'lucide-react';
+import { Mail, Lock, User as UserIcon, ArrowRight, Loader2 } from 'lucide-react';
 import { HeifiLogo } from './components/HeifiLogo';
 
 const App: React.FC = () => {
@@ -26,6 +27,12 @@ const App: React.FC = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Local AI State
+  const [localConfig, setLocalConfig] = useState<LocalProviderConfig>({
+    baseUrl: 'http://localhost:11434/v1',
+    model: 'llama3'
+  });
 
   // Agent Matrix Control States
   const [agentSafetyLevel, setAgentSafetyLevel] = useState<'low' | 'medium' | 'high'>('medium');
@@ -43,10 +50,11 @@ const App: React.FC = () => {
 
   const providers: ProviderInfo[] = useMemo(() => [
     { id: AIProviderId.GEMINI, name: 'HEIFI Core (Gemini)', description: 'Primary system reasoning backbone.', models: ['gemini-3-pro-preview', 'gemini-3-flash-preview'], icon: '✨', isConnected: !!connectedProviders[AIProviderId.GEMINI] },
+    { id: AIProviderId.LOCAL, name: 'Local Engine', description: 'Private reasoning via Ollama/LM Studio.', models: [localConfig.model], icon: '🏠', isConnected: !!connectedProviders[AIProviderId.LOCAL] },
     { id: AIProviderId.COPILOT, name: 'GitHub Copilot', description: 'GitHub intelligence link.', models: ['gpt-4o'], icon: '🐙', isConnected: !!connectedProviders[AIProviderId.COPILOT] },
     { id: AIProviderId.OPENAI, name: 'OpenAI GPT', description: 'Enterprise keys connection.', models: ['gpt-4o', 'o1-preview'], icon: '🧠', isConnected: !!connectedProviders[AIProviderId.OPENAI] },
     { id: AIProviderId.GROK, name: 'xAI Grok', description: 'Grok-3 infrastructure link.', models: ['grok-3'], icon: '✖️', isConnected: !!connectedProviders[AIProviderId.GROK] },
-  ], [connectedProviders]);
+  ], [connectedProviders, localConfig.model]);
 
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string>('');
@@ -64,6 +72,8 @@ const App: React.FC = () => {
       try {
         const storedIdentity = localStorage.getItem('heifi_user_v1_secure');
         const storedProviders = localStorage.getItem('heifi_provider_sync_v1');
+        const storedLocal = localStorage.getItem('heifi_local_config');
+        if (storedLocal) setLocalConfig(JSON.parse(storedLocal));
         if (storedProviders) setConnectedProviders(JSON.parse(storedProviders));
         if (storedIdentity) {
           const user = JSON.parse(storedIdentity);
@@ -118,6 +128,9 @@ const App: React.FC = () => {
     } else if (providerId === AIProviderId.OPENAI) {
       const key = prompt("Enter Neural API Key (OpenAI):");
       if (key) updateProviderConnection(providerId, true);
+    } else if (providerId === AIProviderId.LOCAL) {
+      updateProviderConnection(providerId, true);
+      setActiveProvider(providerId);
     }
   };
 
@@ -189,7 +202,12 @@ const App: React.FC = () => {
         toolPermissions
       };
 
-      const response = await GeminiService.chat(prompt, history, projectFiles, isAgent, intelligenceMode, agentSettings, toolResponse);
+      let response;
+      if (activeProvider === AIProviderId.LOCAL) {
+        response = await LocalAiService.chat(prompt, history, localConfig, isAgent);
+      } else {
+        response = await GeminiService.chat(prompt, history, projectFiles, isAgent, intelligenceMode, agentSettings, toolResponse);
+      }
       
       const assistantMessage: Message = {
         id: (Date.now() + Math.random()).toString(),
@@ -310,14 +328,13 @@ const App: React.FC = () => {
 
   if (authLoading) {
     return (
-      <div className="flex h-screen w-full bg-black items-center justify-center">
+      <div className="flex h-screen w-full bg-[#000000] items-center justify-center">
         <div className="flex flex-col items-center gap-8 px-6 text-center animate-pulse">
           <div className="relative">
-            <div className="absolute inset-0 bg-white/10 blur-[60px]"></div>
             <HeifiLogo className="w-16 h-16 relative z-10" />
           </div>
           <div>
-            <p className="text-[10px] text-grok-muted font-black uppercase tracking-[0.4em]">Establishing HEIFI Sync...</p>
+            <p className="text-[10px] text-[#71717a] font-black uppercase tracking-[0.4em]">Handshaking...</p>
           </div>
         </div>
       </div>
@@ -326,43 +343,50 @@ const App: React.FC = () => {
 
   if (!session) {
     return (
-      <div className="flex h-screen w-full bg-black items-center justify-center p-4 md:p-6 relative overflow-hidden">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-white/5 rounded-full blur-[120px] animate-float"></div>
-        <div className="max-w-md w-full glass-panel rounded-[2.5rem] p-8 md:p-12 shadow-[0_0_100px_rgba(0,0,0,0.8)] relative z-20 animate-in zoom-in-95 duration-500">
-          <div className="flex flex-col items-center mb-10 text-center">
-            <div className="mb-6 shadow-[0_0_40px_rgba(255,255,255,0.1)]">
-              <HeifiLogo className="w-20 h-20" />
+      <div className="flex h-screen w-full bg-[#000000] items-center justify-center p-4 md:p-6 relative overflow-hidden">
+        <div className="max-w-md w-full rounded-[2.5rem] p-8 md:p-12 relative z-20 animate-in fade-in duration-700">
+          <div className="flex flex-col items-center mb-12 text-center">
+            <div className="mb-8">
+              <HeifiLogo className="w-24 h-24" />
             </div>
-            <h2 className="text-3xl md:text-4xl font-black text-white tracking-tighter mb-2">HEIFI</h2>
-            <p className="text-[#a3a3a3] text-[11px] font-bold tracking-[0.2em] uppercase opacity-80">Establish Neural Handshake</p>
+            <h2 className="text-4xl md:text-5xl font-black text-white tracking-tighter mb-2">HEIFI</h2>
+            <p className="text-[#71717a] text-[11px] font-black tracking-[0.3em] uppercase opacity-60">Authorize Neural Session</p>
           </div>
 
           <form onSubmit={handleAppAuthSubmit} className="space-y-6">
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-[#71717a] uppercase tracking-wider ml-1">Nexus Node</label>
-              <div className="relative group">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-[#71717a] group-focus-within:text-white" size={16} />
-                <input type="email" required placeholder="nexus@heifi.ai" className="w-full bg-black/40 border border-[#27272a] rounded-2xl py-4 pl-12 pr-4 text-sm font-medium text-white focus:ring-1 focus:ring-white/20 outline-none transition-all" />
+              <div className="relative">
+                <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-[#71717a]" size={18} />
+                <input 
+                  type="email" 
+                  required 
+                  placeholder="Nexus Address" 
+                  className="w-full bg-[#0a0a0a] border border-[#27272a] rounded-2xl py-5 pl-14 pr-5 text-[15px] font-medium text-white focus:border-white outline-none transition-all placeholder:text-[#3f3f46]" 
+                />
               </div>
             </div>
 
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-[#71717a] uppercase tracking-wider ml-1">Secure Passkey</label>
-              <div className="relative group">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-[#71717a] group-focus-within:text-white" size={16} />
-                <input type="password" required placeholder="••••••••••••" className="w-full bg-black/40 border border-[#27272a] rounded-2xl py-4 pl-12 pr-4 text-sm font-medium text-white focus:ring-1 focus:ring-white/20 outline-none transition-all" />
+              <div className="relative">
+                <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-[#71717a]" size={18} />
+                <input 
+                  type="password" 
+                  required 
+                  placeholder="Passkey" 
+                  className="w-full bg-[#0a0a0a] border border-[#27272a] rounded-2xl py-5 pl-14 pr-5 text-[15px] font-medium text-white focus:border-white outline-none transition-all placeholder:text-[#3f3f46]" 
+                />
               </div>
             </div>
 
-            <button type="submit" className="w-full py-4.5 bg-white text-black font-black uppercase tracking-widest rounded-full hover:bg-white/90 shadow-xl transition-all flex items-center justify-center gap-3 group mt-4 text-[13px]">
-              {authMode === 'signin' ? 'Verify Identity' : 'Initialize Profile'} 
-              <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+            <button type="submit" className="w-full py-5 bg-white text-black font-black uppercase tracking-[0.2em] rounded-full hover:bg-[#f4f4f5] transition-all flex items-center justify-center gap-3 group mt-4 text-[13px]">
+              {authMode === 'signin' ? 'Verify Operator' : 'Register Identity'} 
+              <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
             </button>
           </form>
 
-          <div className="mt-10 text-center">
-            <button onClick={() => setAuthMode(authMode === 'signin' ? 'signup' : 'signin')} className="text-[11px] text-[#71717a] font-black uppercase tracking-widest hover:text-white transition-colors">
-              {authMode === 'signin' ? "No Operator ID? Create One" : "Already Verified? Sign In"}
+          <div className="mt-12 text-center">
+            <button onClick={() => setAuthMode(authMode === 'signin' ? 'signup' : 'signin')} className="text-[11px] text-[#52525b] font-black uppercase tracking-widest hover:text-white transition-colors">
+              {authMode === 'signin' ? "Create New Profile" : "Back to Verification"}
             </button>
           </div>
         </div>
@@ -371,7 +395,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="flex h-screen w-full bg-transparent overflow-hidden text-grok-foreground flex-col md:flex-row">
+    <div className="flex h-screen w-full bg-[#000000] overflow-hidden text-grok-foreground flex-col md:flex-row">
       <Sidebar 
         currentView={currentView}
         isAgentMode={isAgentMode}
@@ -442,6 +466,11 @@ const App: React.FC = () => {
           onSetAgentSafetyLevel={setAgentSafetyLevel}
           agentAlwaysAsk={agentAlwaysAsk}
           onSetAgentAlwaysAsk={setAgentAlwaysAsk}
+          localConfig={localConfig}
+          onSetLocalConfig={(conf) => {
+            setLocalConfig(conf);
+            localStorage.setItem('heifi_local_config', JSON.stringify(conf));
+          }}
           onSelectProvider={(id) => {
              const p = providers.find(prov => prov.id === id);
              if (p?.isConnected) setActiveProvider(id); else startProviderLink(id);

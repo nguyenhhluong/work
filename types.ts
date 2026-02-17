@@ -3,7 +3,8 @@ export enum AIProviderId {
   GEMINI = 'gemini',
   COPILOT = 'copilot',
   OPENAI = 'openai',
-  GROK = 'grok'
+  GROK = 'grok',
+  LOCAL = 'local'
 }
 
 export enum AppView {
@@ -81,4 +82,9 @@ export interface SSHConfig {
   username: string;
   password?: string;
   privateKey?: string;
+}
+
+export interface LocalProviderConfig {
+  baseUrl: string;
+  model: string;
 }

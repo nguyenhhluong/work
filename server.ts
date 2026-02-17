@@ -62,6 +62,53 @@ app.prepare().then(() => {
       return;
     }
 
+    // Local AI Proxy Endpoints
+    if (req.url === '/api/local-ai/chat' && req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => { body += chunk; });
+      req.on('end', async () => {
+        try {
+          const { baseUrl, model, messages, isAgentMode } = JSON.parse(body);
+          const response = await fetch(`${baseUrl}/chat/completions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: model,
+              messages: messages,
+              temperature: 0.7
+            })
+          });
+          const data = await response.json();
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(data));
+        } catch (e: any) {
+          res.writeHead(500);
+          res.end(JSON.stringify({ error: e.message }));
+        }
+      });
+      return;
+    }
+
+    if (req.url === '/api/local-ai/models' && req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => { body += chunk; });
+      req.on('end', async () => {
+        try {
+          const { baseUrl } = JSON.parse(body);
+          const response = await fetch(`${baseUrl}/models`);
+          const data = await response.json();
+          // Map different model listing formats
+          const modelList = data.data ? data.data.map((m: any) => m.id) : (data.models ? data.models.map((m: any) => m.name) : []);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ models: modelList }));
+        } catch (e: any) {
+          res.writeHead(200); // Return empty even on failure to avoid blocking UI
+          res.end(JSON.stringify({ models: [] }));
+        }
+      });
+      return;
+    }
+
     handler(req, res);
   });
 
