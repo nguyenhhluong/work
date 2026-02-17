@@ -194,6 +194,26 @@ const App: React.FC = () => {
     })));
   };
 
+  // Added handleFileUpload to resolve compilation error and enable project file uploads
+  const handleFileUpload = useCallback(async (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const result = e.target?.result as string;
+      // Extract base64 payload from data URL
+      const base64 = result.includes(',') ? result.split(',')[1] : result;
+      
+      const newFile: ProjectFile = {
+        id: Math.random().toString(36).substring(2, 11),
+        name: file.name,
+        size: `${(file.size / 1024).toFixed(1)} KB`,
+        type: file.type || 'text/plain',
+        content: base64
+      };
+      setProjectFiles(prev => [...prev, newFile]);
+    };
+    reader.readAsDataURL(file);
+  }, []);
+
   return (
     <div className="flex h-screen w-full bg-slate-950 overflow-hidden text-slate-100">
       <Sidebar 

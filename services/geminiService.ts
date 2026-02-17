@@ -74,14 +74,20 @@ export class GeminiService {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
     try {
-      // Build parts from history
+      // Build parts from history ensuring role consistency for tool calls
       const contents = history.map(m => {
         const parts: any[] = [{ text: m.content || " " }];
         
-        // If this message had tool calls, we need to represent them in model role
+        // Assistant turns with tool calls must represent the functionCall in history
         if (m.toolCalls && m.toolCalls.length > 0 && m.role === 'assistant') {
-          // In Google GenAI SDK, function calls are part of the model content
-          // However, for simplicity in this bridge, we handle the latest prompt
+          m.toolCalls.forEach(tc => {
+            parts.push({
+              functionCall: {
+                name: tc.name,
+                args: tc.args
+              }
+            });
+          });
         }
         
         return {
@@ -90,7 +96,7 @@ export class GeminiService {
         };
       });
 
-      // Add tool responses if any
+      // Add tool responses if any as a user turn immediately after the call
       if (toolResponse) {
         contents.push({
           role: 'user',
@@ -103,7 +109,7 @@ export class GeminiService {
         } as any);
       }
 
-      // Add latest prompt
+      // Add latest prompt with attached project context
       if (prompt) {
         const fileParts = files.map(file => ({
           inlineData: {
@@ -118,6 +124,7 @@ export class GeminiService {
         });
       }
 
+      // Execute content generation using the Gemini 3 Pro model
       const response = await ai.models.generateContent({
         model: 'gemini-3-pro-preview',
         contents: contents as any,
@@ -129,11 +136,10 @@ export class GeminiService {
         }
       });
 
+      // Directly access .text property and .functionCalls for clean output extraction
       return {
         text: response.text || "",
-        toolCalls: response.candidates?.[0]?.content?.parts
-          ?.filter(p => p.functionCall)
-          ?.map(p => p.functionCall)
+        toolCalls: response.functionCalls
       };
     } catch (error) {
       console.error("Gemini API Error:", error);
