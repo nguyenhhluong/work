@@ -10,7 +10,8 @@ import { DeviceFlowModal } from './components/DeviceFlowModal';
 import { AIProviderId, ProviderInfo, Message, ChatSession, ProjectFile, AppView, Session, User, DeviceFlowResponse } from './types';
 import { GeminiService, IntelligenceMode, AgentSettings } from './services/geminiService';
 import { io, Socket } from 'socket.io-client';
-import { Command, Mail, Lock, User as UserIcon, ArrowRight } from 'lucide-react';
+import { Mail, Lock, User as UserIcon, ArrowRight } from 'lucide-react';
+import { HeifiLogo } from './components/HeifiLogo';
 
 const App: React.FC = () => {
   const [session, setSession] = useState<Session | null>(null);
@@ -41,7 +42,7 @@ const App: React.FC = () => {
   });
 
   const providers: ProviderInfo[] = useMemo(() => [
-    { id: AIProviderId.GEMINI, name: 'OmniCore (Gemini)', description: 'Primary system reasoning backbone.', models: ['gemini-3-pro-preview', 'gemini-3-flash-preview'], icon: '✨', isConnected: !!connectedProviders[AIProviderId.GEMINI] },
+    { id: AIProviderId.GEMINI, name: 'HEIFI Core (Gemini)', description: 'Primary system reasoning backbone.', models: ['gemini-3-pro-preview', 'gemini-3-flash-preview'], icon: '✨', isConnected: !!connectedProviders[AIProviderId.GEMINI] },
     { id: AIProviderId.COPILOT, name: 'GitHub Copilot', description: 'GitHub intelligence link.', models: ['gpt-4o'], icon: '🐙', isConnected: !!connectedProviders[AIProviderId.COPILOT] },
     { id: AIProviderId.OPENAI, name: 'OpenAI GPT', description: 'Enterprise keys connection.', models: ['gpt-4o', 'o1-preview'], icon: '🧠', isConnected: !!connectedProviders[AIProviderId.OPENAI] },
     { id: AIProviderId.GROK, name: 'xAI Grok', description: 'Grok-3 infrastructure link.', models: ['grok-3'], icon: '✖️', isConnected: !!connectedProviders[AIProviderId.GROK] },
@@ -61,8 +62,8 @@ const App: React.FC = () => {
   useEffect(() => {
     const recoverSession = async () => {
       try {
-        const storedIdentity = localStorage.getItem('omnichat_user_v3_secure');
-        const storedProviders = localStorage.getItem('omnichat_provider_sync_v3');
+        const storedIdentity = localStorage.getItem('heifi_user_v1_secure');
+        const storedProviders = localStorage.getItem('heifi_provider_sync_v1');
         if (storedProviders) setConnectedProviders(JSON.parse(storedProviders));
         if (storedIdentity) {
           const user = JSON.parse(storedIdentity);
@@ -83,20 +84,20 @@ const App: React.FC = () => {
     setAuthError(null);
     setTimeout(() => {
       const user: User = { 
-        id: 'oid-' + Math.random().toString(36).substr(2, 9), 
+        id: 'heifi-' + Math.random().toString(36).substr(2, 9), 
         name: authMode === 'signup' ? 'New Operator' : 'Nexus Operator', 
-        email: 'operator@omnicore.ai', 
+        email: 'operator@heifi.ai', 
         image: `https://api.dicebear.com/7.x/avataaars/svg?seed=${Math.random()}` 
       };
-      localStorage.setItem('omnichat_user_v3_secure', JSON.stringify(user));
+      localStorage.setItem('heifi_user_v1_secure', JSON.stringify(user));
       setSession({ user, expires: 'never' });
       setAuthLoading(false);
     }, 1000);
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('omnichat_user_v3_secure');
-    localStorage.removeItem('omnichat_provider_sync_v3');
+    localStorage.removeItem('heifi_user_v1_secure');
+    localStorage.removeItem('heifi_provider_sync_v1');
     setSession(null);
     setIsSettingsOpen(false);
     setSessions([]);
@@ -147,7 +148,7 @@ const App: React.FC = () => {
   const updateProviderConnection = (id: string, status: boolean) => {
     setConnectedProviders(prev => {
       const next = { ...prev, [id]: status };
-      localStorage.setItem('omnichat_provider_sync_v3', JSON.stringify(next));
+      localStorage.setItem('heifi_provider_sync_v1', JSON.stringify(next));
       return next;
     });
   };
@@ -164,7 +165,7 @@ const App: React.FC = () => {
     const newSession: ChatSession = {
       id: Date.now().toString(),
       providerId: activeProvider,
-      title: currentView === AppView.AGENT ? 'Autonomous Objective' : 'Neural Conversation',
+      title: currentView === AppView.AGENT ? 'HEIFI Objective' : 'Neural Conversation',
       messages: [],
       createdAt: new Date(),
       isAgentMode: currentView === AppView.AGENT
@@ -206,9 +207,7 @@ const App: React.FC = () => {
 
       setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, messages: [...s.messages, assistantMessage] } : s));
 
-      // Automated loop for low-risk actions if alwaysAsk is false
       if (assistantMessage.toolCalls?.length && !agentAlwaysAsk && !isStoppingRef.current) {
-        // Logic: if non-destructive, auto-approve
         const canAutoApprove = assistantMessage.toolCalls.every(tc => ['list_dir', 'read_file', 'connect_ssh'].includes(tc.name));
         if (canAutoApprove || agentSafetyLevel === 'low') {
            for (const tc of assistantMessage.toolCalls) {
@@ -245,7 +244,6 @@ const App: React.FC = () => {
     
     if (!toolCall || !socketRef.current) return;
 
-    // Set executing state
     setSessions(prev => prev.map(s => ({
       ...s,
       messages: s.messages.map(m => m.id === messageId ? {
@@ -283,7 +281,6 @@ const App: React.FC = () => {
         
         const finalSession = updated.find(s => s.id === activeSessionId);
         if (finalSession && !isStoppingRef.current) {
-            // Recursive turn: feeding result back to model
             runAgentTurn(null, finalSession.messages, { id: toolCallId, name: toolCall.name, response: result });
         }
         return updated;
@@ -316,13 +313,11 @@ const App: React.FC = () => {
       <div className="flex h-screen w-full bg-black items-center justify-center">
         <div className="flex flex-col items-center gap-8 px-6 text-center animate-pulse">
           <div className="relative">
-            <div className="absolute inset-0 bg-[#1d9bf0]/20 blur-[60px]"></div>
-            <div className="w-16 h-16 bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl flex items-center justify-center relative z-10">
-              <Command size={32} className="text-[#1d9bf0]" />
-            </div>
+            <div className="absolute inset-0 bg-white/10 blur-[60px]"></div>
+            <HeifiLogo className="w-16 h-16 relative z-10" />
           </div>
           <div>
-            <p className="text-[10px] text-grok-muted font-black uppercase tracking-[0.4em]">Establishing Matrix Sync...</p>
+            <p className="text-[10px] text-grok-muted font-black uppercase tracking-[0.4em]">Establishing HEIFI Sync...</p>
           </div>
         </div>
       </div>
@@ -332,13 +327,13 @@ const App: React.FC = () => {
   if (!session) {
     return (
       <div className="flex h-screen w-full bg-black items-center justify-center p-4 md:p-6 relative overflow-hidden">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-[#1d9bf0]/5 rounded-full blur-[120px] animate-float"></div>
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-white/5 rounded-full blur-[120px] animate-float"></div>
         <div className="max-w-md w-full glass-panel rounded-[2.5rem] p-8 md:p-12 shadow-[0_0_100px_rgba(0,0,0,0.8)] relative z-20 animate-in zoom-in-95 duration-500">
           <div className="flex flex-col items-center mb-10 text-center">
-            <div className="w-16 h-16 bg-[#1d9bf0] rounded-2xl flex items-center justify-center mb-6 shadow-[0_0_40px_rgba(29,155,240,0.4)]">
-              <Command size={32} className="text-white" />
+            <div className="mb-6 shadow-[0_0_40px_rgba(255,255,255,0.1)]">
+              <HeifiLogo className="w-20 h-20" />
             </div>
-            <h2 className="text-3xl md:text-4xl font-black text-white tracking-tighter mb-2">OMNICHAT</h2>
+            <h2 className="text-3xl md:text-4xl font-black text-white tracking-tighter mb-2">HEIFI</h2>
             <p className="text-[#a3a3a3] text-[11px] font-bold tracking-[0.2em] uppercase opacity-80">Establish Neural Handshake</p>
           </div>
 
@@ -346,27 +341,27 @@ const App: React.FC = () => {
             <div className="space-y-2">
               <label className="text-[10px] font-black text-[#71717a] uppercase tracking-wider ml-1">Nexus Node</label>
               <div className="relative group">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-[#71717a] group-focus-within:text-[#1d9bf0]" size={16} />
-                <input type="email" required placeholder="nexus@omnicore.ai" className="w-full bg-black/40 border border-[#27272a] rounded-2xl py-4 pl-12 pr-4 text-sm font-medium text-white focus:ring-1 focus:ring-[#1d9bf0] outline-none transition-all" />
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-[#71717a] group-focus-within:text-white" size={16} />
+                <input type="email" required placeholder="nexus@heifi.ai" className="w-full bg-black/40 border border-[#27272a] rounded-2xl py-4 pl-12 pr-4 text-sm font-medium text-white focus:ring-1 focus:ring-white/20 outline-none transition-all" />
               </div>
             </div>
 
             <div className="space-y-2">
               <label className="text-[10px] font-black text-[#71717a] uppercase tracking-wider ml-1">Secure Passkey</label>
               <div className="relative group">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-[#71717a] group-focus-within:text-[#1d9bf0]" size={16} />
-                <input type="password" required placeholder="••••••••••••" className="w-full bg-black/40 border border-[#27272a] rounded-2xl py-4 pl-12 pr-4 text-sm font-medium text-white focus:ring-1 focus:ring-[#1d9bf0] outline-none transition-all" />
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-[#71717a] group-focus-within:text-white" size={16} />
+                <input type="password" required placeholder="••••••••••••" className="w-full bg-black/40 border border-[#27272a] rounded-2xl py-4 pl-12 pr-4 text-sm font-medium text-white focus:ring-1 focus:ring-white/20 outline-none transition-all" />
               </div>
             </div>
 
-            <button type="submit" className="w-full py-4.5 bg-[#1d9bf0] text-white font-bold rounded-full hover:bg-[#1a8cd8] shadow-xl transition-all flex items-center justify-center gap-3 group mt-4">
+            <button type="submit" className="w-full py-4.5 bg-white text-black font-black uppercase tracking-widest rounded-full hover:bg-white/90 shadow-xl transition-all flex items-center justify-center gap-3 group mt-4 text-[13px]">
               {authMode === 'signin' ? 'Verify Identity' : 'Initialize Profile'} 
               <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
             </button>
           </form>
 
           <div className="mt-10 text-center">
-            <button onClick={() => setAuthMode(authMode === 'signin' ? 'signup' : 'signin')} className="text-[11px] text-[#71717a] font-bold uppercase tracking-widest hover:text-white transition-colors">
+            <button onClick={() => setAuthMode(authMode === 'signin' ? 'signup' : 'signin')} className="text-[11px] text-[#71717a] font-black uppercase tracking-widest hover:text-white transition-colors">
               {authMode === 'signin' ? "No Operator ID? Create One" : "Already Verified? Sign In"}
             </button>
           </div>

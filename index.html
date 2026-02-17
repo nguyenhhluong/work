@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>OmniChat - Unified AI & SSH</title>
+    <title>HEIFI - Neural Interface</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.3.0/css/xterm.css" />
@@ -39,6 +39,7 @@
                         'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
                         'float': 'float 6s ease-in-out infinite',
                         'glow-pulse': 'glowPulse 3s ease-in-out infinite',
+                        'spin-slow': 'spin 3s linear infinite',
                     },
                     keyframes: {
                         fadeIn: {
@@ -54,8 +55,8 @@
                             '50%': { transform: 'translateY(-20px)' },
                         },
                         glowPulse: {
-                            '0%, 100%': { borderColor: 'rgba(29, 155, 240, 0.1)', boxShadow: '0 0 20px rgba(0,0,0,0.5), inset 0 0 5px rgba(29, 155, 240, 0.05)' },
-                            '50%': { borderColor: 'rgba(29, 155, 240, 0.3)', boxShadow: '0 0 30px rgba(29, 155, 240, 0.1), inset 0 0 10px rgba(29, 155, 240, 0.1)' },
+                            '0%, 100%': { borderColor: 'rgba(255, 255, 255, 0.1)', boxShadow: '0 0 20px rgba(255, 255, 255, 0.05), inset 0 0 5px rgba(255, 255, 255, 0.05)' },
+                            '50%': { borderColor: 'rgba(255, 255, 255, 0.4)', boxShadow: '0 0 40px rgba(255, 255, 255, 0.15), inset 0 0 10px rgba(255, 255, 255, 0.1)' },
                         }
                     }
                 }
@@ -73,30 +74,36 @@
             -webkit-font-smoothing: antialiased;
         }
 
-        /* Modern Glassmorphism with deep transparency */
+        /* Highly transparent and blurry glass */
         .glass-panel {
-            background: rgba(5, 5, 5, 0.4);
-            backdrop-filter: blur(40px) saturate(220%);
-            -webkit-backdrop-filter: blur(40px) saturate(220%);
-            border: 1px solid rgba(255, 255, 255, 0.05);
+            background: rgba(10, 10, 10, 0.15);
+            backdrop-filter: blur(45px) saturate(180%);
+            -webkit-backdrop-filter: blur(45px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.03);
         }
 
         .glass-card {
-            background: rgba(255, 255, 255, 0.02);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.01);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
         }
 
-        /* Glowing Frame Effect */
+        /* Distinct Glowing Frame */
         .glow-frame {
-            border: 1px solid rgba(29, 155, 240, 0.15);
-            box-shadow: 0 0 30px rgba(0,0,0,0.8), inset 0 0 10px rgba(29, 155, 240, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 40px rgba(0, 0, 0, 0.9), inset 0 0 20px rgba(255, 255, 255, 0.02);
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .glow-frame:hover {
+            border-color: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 0 60px rgba(255, 255, 255, 0.05), inset 0 0 25px rgba(255, 255, 255, 0.03);
         }
 
         .glow-frame-success {
-            border: 1px solid rgba(16, 185, 129, 0.15);
-            box-shadow: 0 0 30px rgba(0,0,0,0.8), inset 0 0 10px rgba(16, 185, 129, 0.05);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            box-shadow: 0 0 40px rgba(0, 0, 0, 0.9), inset 0 0 20px rgba(16, 185, 129, 0.03);
         }
 
         /* Ambient Mesh Background */
@@ -109,10 +116,10 @@
             z-index: -1;
             background-color: #000000;
             background-image: 
-                radial-gradient(at 0% 0%, hsla(205,100%,20%,0.2) 0, transparent 60%), 
-                radial-gradient(at 100% 100%, hsla(225,100%,15%,0.15) 0, transparent 60%), 
-                radial-gradient(at 50% 50%, hsla(205,100%,10%,0.1) 0, transparent 70%);
-            opacity: 0.9;
+                radial-gradient(at 0% 0%, hsla(220, 20%, 20%, 0.15) 0, transparent 60%), 
+                radial-gradient(at 100% 100%, hsla(220, 20%, 15%, 0.1) 0, transparent 60%), 
+                radial-gradient(at 50% 50%, hsla(220, 20%, 15%, 0.1) 0, transparent 70%);
+            opacity: 1;
         }
 
         /* Scrollbar aesthetics */
@@ -124,11 +131,11 @@
             background: transparent;
         }
         ::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.05);
             border-radius: 10px;
         }
         ::-webkit-scrollbar-thumb:hover {
-            background: rgba(29, 155, 240, 0.3);
+            background: rgba(255, 255, 255, 0.2);
         }
 
         .xterm .xterm-viewport {
@@ -142,13 +149,13 @@
 
         .custom-scrollbar {
             scrollbar-width: thin;
-            scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
+            scrollbar-color: rgba(255, 255, 255, 0.05) transparent;
         }
 
         .typing-dot {
             width: 5px;
             height: 5px;
-            background-color: #1d9bf0;
+            background-color: #ffffff;
             border-radius: 50%;
             display: inline-block;
             margin: 0 1.5px;
@@ -189,7 +196,7 @@
 }
 </script>
 </head>
-<body class="bg-grok-bg text-grok-foreground selection:bg-grok-accent/30">
+<body class="bg-grok-bg text-grok-foreground selection:bg-white/20">
     <div class="mesh-gradient"></div>
     <div id="root"></div>
 </body>

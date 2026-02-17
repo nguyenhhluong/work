@@ -136,12 +136,6 @@ export class GeminiService {
             });
           });
         }
-        
-        // Handle tool results in history
-        if (m.role === 'assistant' && m.toolCalls) {
-          // In a real history, tool results usually follow as a separate message or part
-          // but for this simplified history, we'll ensure parts are clean
-        }
 
         return {
           role: m.role === 'user' ? 'user' : 'model',
@@ -149,7 +143,6 @@ export class GeminiService {
         };
       });
 
-      // Inject the latest tool response if available
       if (toolResponse) {
         contents.push({
           role: 'user',
@@ -162,7 +155,6 @@ export class GeminiService {
         } as any);
       }
 
-      // Add current prompt
       if (prompt) {
         const fileParts = files.map(file => ({
           inlineData: {
@@ -191,7 +183,7 @@ export class GeminiService {
         contents: contents as any,
         config: {
           temperature: 0.7,
-          systemInstruction: `SYSTEM IDENTITY: OmniChat Neural Interface [Core_v3].
+          systemInstruction: `SYSTEM IDENTITY: HEIFI Neural Interface [Matrix_v3].
 OPERATIONAL STATUS: [Intelligence: ${intelligenceMode.toUpperCase()}] [Agent: ${isAgentMode ? 'ENABLED' : 'ADVISORY'}].
 SAFETY PROTOCOL: ${agentSettings?.safetyLevel.toUpperCase() || 'MEDIUM'} RISK TOLERANCE.
 HITL POLICY: ${agentSettings?.alwaysAsk ? 'MANDATORY AUTHENTICATION FOR ALL TOOL EXECUTION.' : 'AUTOMATIC EXECUTION FOR NON-DESTRUCTIVE ACTIONS.'}
@@ -199,7 +191,7 @@ HITL POLICY: ${agentSettings?.alwaysAsk ? 'MANDATORY AUTHENTICATION FOR ALL TOOL
 CORE DIRECTIVES:
 1. Provide concise, expert-level technical responses. 
 2. ${isAgentMode ? "AUTONOMOUS MODE: You control infrastructure via SSH tools. Always verify directory contents before reading/writing files. If a command fails, interpret the stderr and adjust your approach. You must ALWAYS use 'connect_ssh' first." : "ADVISORY MODE: You are an expert code architect. Do not attempt system manipulation."}
-3. Maintain the professional, high-fidelity 'OmniMatrix' aesthetic. No fluff, only high-density intelligence.`,
+3. Maintain the professional, high-fidelity 'HEIFI' aesthetic. No fluff, only high-density intelligence.`,
           tools: activeTools ? [{ functionDeclarations: activeTools }] : undefined,
           ...(thinkingBudget > 0 ? { thinkingConfig: { thinkingBudget }, maxOutputTokens: thinkingBudget + 4000 } : {})
         }
@@ -211,7 +203,7 @@ CORE DIRECTIVES:
       };
     } catch (error) {
       console.error("Gemini Critical Error:", error);
-      return { text: "Neural Link Disrupted. Error code: " + (error instanceof Error ? error.message : "0xDEADBEEF") };
+      return { text: "HEIFI Neural Link Disrupted. Check backbone connection." };
     }
   }
 }
