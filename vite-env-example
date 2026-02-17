@@ -1,0 +1,4 @@
+# Auth0 Configuration for Vite (copy to .env.local)
+VITE_AUTH0_DOMAIN=your-tenant-name.auth0.com
+VITE_AUTH0_CLIENT_ID=your_client_id_here
+VITE_AUTH0_AUDIENCE=https://your-tenant-name.auth0.com/api/v2/

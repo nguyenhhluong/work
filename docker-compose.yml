@@ -11,15 +11,18 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=production
-      - API_KEY=${GEMINI_API_KEY}
-      - DATABASE_URL=file:/app/prisma/dev.db
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - DATABASE_URL=file:/app/prisma/data/dev.db
     volumes:
       - ./prisma/data:/app/prisma/data
     restart: unless-stopped
+    depends_on:
+      - db-init
 
-  # Optional SQLite backup/persistence helper
+  # SQLite database initialization
   db-init:
     image: alpine:latest
     volumes:
       - ./prisma/data:/app/prisma/data
     command: sh -c "mkdir -p /app/prisma/data && chmod -R 777 /app/prisma/data"
+    restart: "no"

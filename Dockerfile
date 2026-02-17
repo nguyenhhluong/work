@@ -4,7 +4,7 @@ WORKDIR /app
 
 RUN apk add --no-cache libc6-compat openssl
 
-COPY package.json package-lock.json* ./
+COPY package.json* ./
 RUN npm install --legacy-peer-deps
 
 COPY prisma ./prisma

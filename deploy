@@ -1,0 +1,133 @@
+#!/bin/bash
+
+# OmniChat 1-Click Deploy Script
+# This script handles everything from dependency installation to finished deployment.
+
+set -e
+
+echo "🚀 Starting Complete OmniChat Deployment..."
+
+# Function to check if command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+# 1. Check system requirements
+echo "🔍 Checking system requirements..."
+if ! command_exists docker; then
+    echo "❌ Docker is not installed. Please install Docker first."
+    echo "Visit: https://docs.docker.com/get-docker/"
+    exit 1
+fi
+
+if ! docker compose version >/dev/null 2>&1; then
+    echo "❌ Docker Compose is not available. Installing..."
+    sudo apt update && sudo apt install -y docker-compose-plugin
+fi
+
+if ! command_exists npm; then
+    echo "❌ Node.js/npm is not installed. Please install Node.js first."
+    echo "Visit: https://nodejs.org/"
+    exit 1
+fi
+
+# 2. Install local dependencies
+echo "📦 Installing local dependencies..."
+npm install --legacy-peer-deps
+
+# 3. Check for .env file
+if [ ! -f .env ]; then
+    echo "⚠️  No .env file found. Creating template from .env.example..."
+    if [ -f .env.example ]; then
+        cp .env.example .env
+        echo "✅ Created .env from .env.example"
+        echo "⚠️  Please edit the .env file with your Gemini API Key before proceeding."
+        echo "    Current GEMINI_API_KEY is set to placeholder value."
+        
+        # Check if API key is still placeholder
+        if grep -q "your_gemini_api_key_here" .env; then
+            echo "❌ You must update GEMINI_API_KEY in .env file before deploying."
+            echo "   Get your key from: https://aistudio.google.com/app/apikey"
+            read -p "Continue anyway? (y/N): " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                exit 1
+            fi
+        fi
+    else
+        echo "❌ No .env.example file found. Creating basic .env..."
+        echo "GEMINI_API_KEY=your_key_here" > .env
+        echo "NODE_ENV=production" >> .env
+        echo "DATABASE_URL=\"file:./prisma/data/dev.db\"" >> .env
+        echo "JWT_SECRET=your_jwt_secret_key_here" >> .env
+        echo "Please edit the .env file with your Gemini API Key before proceeding."
+        exit 1
+    fi
+fi
+
+# 4. Load and validate environment variables
+echo "📋 Loading environment variables..."
+export $(grep -v '^#' .env | grep -v '^$' | xargs)
+
+if [ -z "$GEMINI_API_KEY" ] || [ "$GEMINI_API_KEY" = "your_gemini_api_key_here" ]; then
+    echo "⚠️  WARNING: GEMINI_API_KEY is not set or still placeholder!"
+    echo "Please update your .env file with a real Gemini API key."
+    read -p "Continue anyway? (y/N): " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        exit 1
+    fi
+fi
+
+# 5. Create necessary directories
+echo "📁 Creating necessary directories..."
+mkdir -p prisma/data
+
+# 6. Add user to docker group (if not already)
+if ! groups $USER | grep -q docker; then
+    echo "👤 Adding user to docker group..."
+    sudo usermod -aG docker $USER
+    echo "⚠️  You may need to logout and login again for docker group changes to take effect."
+fi
+
+# 7. Stop any existing containers
+echo "� Stopping existing containers..."
+docker compose down || true
+
+# 8. Build and start containers
+echo "🔨 Building Docker containers..."
+docker compose build --no-cache
+
+echo "🚢 Starting OmniChat in production mode..."
+docker compose up -d
+
+# 9. Wait for containers to be ready
+echo "⏳ Waiting for application to start..."
+sleep 10
+
+# 10. Health check
+echo "🏥 Performing health check..."
+if curl -f http://localhost:3000 >/dev/null 2>&1; then
+    echo "✅ Health check passed!"
+else
+    echo "⚠️  Health check failed. Check logs with: docker compose logs -f"
+fi
+
+# 11. Show final status
+echo ""
+echo "🎉 Deployment Complete!"
+echo "=================================="
+echo "🌐 App URL: http://localhost:3000"
+echo "🛠️  Logs: docker compose logs -f"
+echo "🛑 Stop: docker compose down"
+echo "🔄 Restart: docker compose restart"
+echo "📊 Status: docker compose ps"
+echo "=================================="
+echo ""
+echo "� Database is stored in: ./prisma/data/"
+echo "🔑 Environment variables loaded from: .env"
+echo ""
+echo "🎯 Next steps:"
+echo "1. Open http://localhost:3000 in your browser"
+echo "2. If you see issues, check logs with: docker compose logs -f"
+echo "3. To update after code changes: ./deploy"

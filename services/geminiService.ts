@@ -111,7 +111,7 @@ export class GeminiService {
     toolResponse?: { id: string, name: string, response: any }
   ): Promise<{ text: string; toolCalls?: any[] }> {
     // Initialization using provided guidelines
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
     // Model selection based on the operational context
     let modelName = 'gemini-3-flash-preview';

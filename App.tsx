@@ -8,6 +8,8 @@ import { TerminalArea } from './components/TerminalArea';
 import { SettingsModal } from './components/SettingsModal';
 import { DeviceFlowModal } from './components/DeviceFlowModal';
 import { AIProviderId, ProviderInfo, Message, ChatSession, ProjectFile, AppView, Session, User, DeviceFlowResponse, LocalProviderConfig } from './types';
+import { OpenAIService } from './services/openaiService';
+import { GrokService } from './services/grokService';
 import { GeminiService, IntelligenceMode, AgentSettings } from './services/geminiService';
 import { LocalAiService } from './services/localAiService';
 import { io, Socket } from 'socket.io-client';
@@ -52,8 +54,8 @@ const App: React.FC = () => {
     { id: AIProviderId.GEMINI, name: 'HEIFI Core (Gemini)', description: 'Primary system reasoning backbone.', models: ['gemini-3-pro-preview', 'gemini-3-flash-preview'], icon: '✨', isConnected: !!connectedProviders[AIProviderId.GEMINI] },
     { id: AIProviderId.LOCAL, name: 'Local Engine', description: 'Private reasoning via Ollama/LM Studio.', models: [localConfig.model], icon: '🏠', isConnected: !!connectedProviders[AIProviderId.LOCAL] },
     { id: AIProviderId.COPILOT, name: 'GitHub Copilot', description: 'GitHub intelligence link.', models: ['gpt-4o'], icon: '🐙', isConnected: !!connectedProviders[AIProviderId.COPILOT] },
-    { id: AIProviderId.OPENAI, name: 'OpenAI GPT', description: 'Enterprise keys connection.', models: ['gpt-4o', 'o1-preview'], icon: '🧠', isConnected: !!connectedProviders[AIProviderId.OPENAI] },
-    { id: AIProviderId.GROK, name: 'xAI Grok', description: 'Grok-3 infrastructure link.', models: ['grok-3'], icon: '✖️', isConnected: !!connectedProviders[AIProviderId.GROK] },
+    { id: AIProviderId.OPENAI, name: 'OpenAI GPT', description: 'HTTP authentication with username/password.', models: ['gpt-4o', 'o1-preview'], icon: '🧠', isConnected: !!connectedProviders[AIProviderId.OPENAI] },
+    { id: AIProviderId.GROK, name: 'xAI Grok', description: 'HTTP authentication with username/password.', models: ['grok-3'], icon: '✖️', isConnected: !!connectedProviders[AIProviderId.GROK] },
   ], [connectedProviders, localConfig.model]);
 
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -118,12 +120,12 @@ const App: React.FC = () => {
   /**
    * PROVIDER AUTHENTICATION CONNECTOR
    * Handles the initialization logic for different AI providers.
-   * - COPILOT/GROK: Uses Device Flow (OAuth2).
-   * - OPENAI: Direct API Key prompt.
+   * - COPILOT: Uses Device Flow (OAuth2).
+   * - OPENAI/GROK: Uses HTTP authentication with username/password.
    * - LOCAL: Local Engine config.
    */
   const startProviderLink = async (providerId: AIProviderId) => {
-    if (providerId === AIProviderId.COPILOT || providerId === AIProviderId.GROK) {
+    if (providerId === AIProviderId.COPILOT) {
       try {
         // Step 1: Request Device Code from Backend
         const res = await fetch('/api/auth/github/start', { method: 'POST' });
@@ -133,14 +135,43 @@ const App: React.FC = () => {
       } catch (e) {
         setAuthError("Auth gateway handshake failed.");
       }
-    } else if (providerId === AIProviderId.OPENAI) {
-      // Prompt user for API key - in production, this should be stored securely
-      const key = prompt("Enter Neural API Key (OpenAI):");
-      if (key) updateProviderConnection(providerId, true);
+    } else if (providerId === AIProviderId.OPENAI || providerId === AIProviderId.GROK) {
+      // Prompt for HTTP authentication credentials
+      const username = prompt(`Enter ${providerId === AIProviderId.OPENAI ? 'OpenAI' : 'Grok'} username:`);
+      if (!username) return;
+      
+      const password = prompt(`Enter ${providerId === AIProviderId.OPENAI ? 'OpenAI' : 'Grok'} password:`);
+      if (!password) return;
+
+      try {
+        // Test connection with provided credentials
+        const config = {
+          username,
+          password,
+          model: providerId === AIProviderId.OPENAI ? 'gpt-4o' : 'grok-3'
+        };
+
+        const isConnected = providerId === AIProviderId.OPENAI 
+          ? await OpenAIService.testConnection(config)
+          : await GrokService.testConnection(config);
+          
+        if (isConnected) {
+          if (providerId === AIProviderId.OPENAI) {
+            OpenAIService.setConfig(config);
+          } else {
+            GrokService.setConfig(config);
+          }
+          updateProviderConnection(providerId, true);
+        } else {
+          setAuthError(`${providerId === AIProviderId.OPENAI ? 'OpenAI' : 'Grok'} authentication failed. Check your credentials.`);
+        }
+      } catch (e) {
+        setAuthError(`${providerId === AIProviderId.OPENAI ? 'OpenAI' : 'Grok'} service error.`);
+      }
     } else if (providerId === AIProviderId.LOCAL) {
       updateProviderConnection(providerId, true);
-      setActiveProvider(providerId);
     }
+    setActiveProvider(providerId);
   };
 
   /**
