@@ -5,64 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>HEIFI - Neural Interface</title>
-    <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.3.0/css/xterm.css" />
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        grok: {
-                            bg: '#000000',
-                            card: '#0f0f0f',
-                            secondary: '#161618',
-                            border: '#27272a',
-                            foreground: '#ffffff',
-                            accent: '#1d9bf0',
-                            muted: '#71717a',
-                            success: '#10b981',
-                            error: '#ef4444'
-                        }
-                    },
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                        mono: ['Geist Mono', 'monospace'],
-                    },
-                    screens: {
-                        'xs': '400px',
-                    },
-                    animation: {
-                        'fade-in': 'fadeIn 0.2s ease-out forwards',
-                        'slide-up': 'slideUp 0.3s cubic-bezier(0, 0, 0.2, 1) forwards',
-                        'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-                        'float': 'float 6s ease-in-out infinite',
-                        'glow-pulse': 'glowPulse 3s ease-in-out infinite',
-                        'spin-slow': 'spin 3s linear infinite',
-                    },
-                    keyframes: {
-                        fadeIn: {
-                            '0%': { opacity: '0' },
-                            '100%': { opacity: '1' },
-                        },
-                        slideUp: {
-                            '0%': { transform: 'translateY(10px)', opacity: '0' },
-                            '100%': { transform: 'translateY(0)', opacity: '1' },
-                        },
-                        float: {
-                            '0%, 100%': { transform: 'translateY(0)' },
-                            '50%': { transform: 'translateY(-20px)' },
-                        },
-                        glowPulse: {
-                            '0%, 100%': { borderColor: 'rgba(255, 255, 255, 0.1)', boxShadow: '0 0 20px rgba(255, 255, 255, 0.05), inset 0 0 5px rgba(255, 255, 255, 0.05)' },
-                            '50%': { borderColor: 'rgba(255, 255, 255, 0.4)', boxShadow: '0 0 40px rgba(255, 255, 255, 0.15), inset 0 0 10px rgba(255, 255, 255, 0.1)' },
-                        }
-                    }
-                }
-            }
-        }
-    </script>
+    <link rel="stylesheet" href="/styles.css" />
     <style>
         body {
             font-family: 'Inter', sans-serif;
