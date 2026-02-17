@@ -1,0 +1,25 @@
+
+version: '3.8'
+
+services:
+  omnichat-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: omnichat-app
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - API_KEY=${GEMINI_API_KEY}
+      - DATABASE_URL=file:/app/prisma/dev.db
+    volumes:
+      - ./prisma/data:/app/prisma/data
+    restart: unless-stopped
+
+  # Optional SQLite backup/persistence helper
+  db-init:
+    image: alpine:latest
+    volumes:
+      - ./prisma/data:/app/prisma/data
+    command: sh -c "mkdir -p /app/prisma/data && chmod -R 777 /app/prisma/data"
