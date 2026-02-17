@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { DeviceFlowResponse } from '../types';
-import { ExternalLink, Copy, CheckCircle2, ShieldCheck, Timer } from 'lucide-react';
+import { ExternalLink, Copy, CheckCircle2, ShieldCheck, Timer, Github } from 'lucide-react';
 
 interface DeviceFlowModalProps {
   data: DeviceFlowResponse;
@@ -30,27 +30,28 @@ export const DeviceFlowModal: React.FC<DeviceFlowModalProps> = ({ data, onClose,
   const seconds = countdown % 60;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-      <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-3xl overflow-hidden shadow-2xl">
-        <div className="p-8 text-center">
-          <div className="w-16 h-16 bg-blue-600/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-blue-600/20">
-            <ShieldCheck className="text-blue-500 w-8 h-8" />
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-tokyo-dark/95 backdrop-blur-xl p-6 animate-in fade-in duration-300">
+      <div className="bg-tokyo-bg border border-tokyo-border/50 w-full max-w-md rounded-[3rem] overflow-hidden shadow-[0_0_80px_rgba(0,0,0,0.6)] animate-in zoom-in-95 duration-500">
+        <div className="p-10 text-center">
+          <div className="w-20 h-20 bg-tokyo-accent/10 rounded-[2rem] flex items-center justify-center mx-auto mb-8 border border-tokyo-accent/20 relative">
+            <div className="absolute inset-0 bg-tokyo-accent/10 blur-2xl animate-pulse"></div>
+            <Github className="text-tokyo-accent w-10 h-10 relative" />
           </div>
           
-          <h2 className="text-2xl font-bold mb-2">Device Login</h2>
-          <p className="text-slate-400 text-sm mb-8">
-            Please enter this code on your other device to authenticate.
+          <h2 className="text-3xl font-black text-white mb-3 tracking-tight">Identity Handshake</h2>
+          <p className="text-tokyo-muted text-[14px] leading-relaxed mb-10 font-medium opacity-80">
+            Enter the authorized sequence on your primary device to secure the bridge.
           </p>
 
-          <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 mb-8 relative group">
-            <span className="text-4xl font-mono font-bold tracking-[0.2em] text-blue-400">
+          <div className="bg-tokyo-card/50 border border-tokyo-border/30 rounded-[2rem] p-8 mb-10 relative group hover:border-tokyo-accent/50 transition-colors shadow-inner">
+            <span className="text-5xl font-mono font-black tracking-[0.25em] text-tokyo-accent filter drop-shadow-[0_0_15px_rgba(122,162,247,0.3)]">
               {data.user_code}
             </span>
             <button 
               onClick={handleCopy}
-              className="absolute right-4 top-1/2 -translate-y-1/2 p-2 hover:bg-slate-800 rounded-lg transition-colors"
+              className="absolute right-5 top-1/2 -translate-y-1/2 p-3 bg-tokyo-bg border border-tokyo-border/50 hover:bg-tokyo-card rounded-xl transition-all shadow-xl"
             >
-              {copied ? <CheckCircle2 className="text-green-500" size={20} /> : <Copy className="text-slate-500" size={20} />}
+              {copied ? <CheckCircle2 className="text-tokyo-green" size={20} /> : <Copy className="text-tokyo-muted" size={20} />}
             </button>
           </div>
 
@@ -59,27 +60,27 @@ export const DeviceFlowModal: React.FC<DeviceFlowModalProps> = ({ data, onClose,
               href={data.verification_uri} 
               target="_blank" 
               rel="noopener noreferrer"
-              className="w-full flex items-center justify-center gap-2 py-4 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-500 transition-all shadow-lg shadow-blue-600/20"
+              className="w-full flex items-center justify-center gap-3 py-5 bg-tokyo-accent text-tokyo-bg font-black rounded-2xl hover:bg-tokyo-accent/90 transition-all shadow-xl shadow-tokyo-accent/20"
             >
-              Open Browser <ExternalLink size={18} />
+              Secure Portal Login <ExternalLink size={20} />
             </a>
             
             <button 
               onClick={onComplete}
-              className="w-full py-4 bg-slate-800 text-slate-100 font-bold rounded-2xl hover:bg-slate-700 transition-all border border-slate-700"
+              className="w-full py-5 bg-tokyo-card/60 text-white font-black rounded-2xl hover:bg-tokyo-border/40 transition-all border border-tokyo-border/30"
             >
-              I've entered the code
+              Confirm Authorization
             </button>
           </div>
         </div>
 
-        <div className="bg-slate-950/50 p-4 border-t border-slate-800 flex items-center justify-between px-8">
-          <div className="flex items-center gap-2 text-slate-500 text-xs font-mono">
-            <Timer size={14} />
-            <span>Expires in {minutes}:{seconds.toString().padStart(2, '0')}</span>
+        <div className="bg-tokyo-dark/50 p-6 border-t border-tokyo-border/30 flex items-center justify-between px-10">
+          <div className="flex items-center gap-2.5 text-tokyo-muted text-[11px] font-black uppercase tracking-widest">
+            <Timer size={16} className="text-tokyo-purple" />
+            <span>Entropy Timeout: {minutes}:{seconds.toString().padStart(2, '0')}</span>
           </div>
-          <button onClick={onClose} className="text-xs text-slate-500 hover:text-slate-300 transition-colors">
-            Cancel Authorization
+          <button onClick={onClose} className="text-[11px] font-black uppercase tracking-widest text-tokyo-muted hover:text-tokyo-red transition-colors">
+            Abort Bridge
           </button>
         </div>
       </div>

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { ChatArea } from './components/ChatArea';
@@ -5,67 +6,86 @@ import { RightSidebar } from './components/RightSidebar';
 import { TerminalArea } from './components/TerminalArea';
 import { DeviceFlowModal } from './components/DeviceFlowModal';
 import { SettingsModal } from './components/SettingsModal';
-import { AIProviderId, ProviderInfo, Message, DeviceFlowResponse, ChatSession, ProjectFile, AppView, ToolCall } from './types';
-import { GeminiService } from './services/geminiService';
+import { AIProviderId, ProviderInfo, Message, DeviceFlowResponse, ChatSession, ProjectFile, AppView, Session } from './types';
+import { GeminiService, IntelligenceMode } from './services/geminiService';
 import { io, Socket } from 'socket.io-client';
+import { Github, Loader2, Command, ShieldCheck, ArrowRight } from 'lucide-react';
 
 const App: React.FC = () => {
+  const [session, setSession] = useState<Session | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
   const [currentView, setCurrentView] = useState<AppView>(AppView.CHAT);
   const [activeProvider, setActiveProvider] = useState<AIProviderId>(AIProviderId.GEMINI);
   const [isAgentMode, setIsAgentMode] = useState(false);
-  const [providers, setProviders] = useState<ProviderInfo[]>([
+  const [intelligenceMode, setIntelligenceMode] = useState<IntelligenceMode>('balanced');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false);
+  
+  const [providers] = useState<ProviderInfo[]>([
     { 
       id: AIProviderId.GEMINI, 
       name: 'Gemini Agent', 
       description: 'Autonomous reasoning & tool use', 
-      models: ['gemini-3-pro-preview'], 
+      models: ['gemini-3-pro-preview', 'gemini-3-flash-preview', 'gemini-2.5-flash-lite-latest'], 
       icon: '✨', 
       isConnected: true 
     },
-    { 
-      id: AIProviderId.COPILOT, 
-      name: 'GitHub Copilot', 
-      description: 'AI developer tool with GitHub flow', 
-      models: ['gpt-4o', 'claude-3.5-sonnet'], 
-      icon: '🐙', 
-      isConnected: false 
-    },
-    { 
-      id: AIProviderId.OPENAI, 
-      name: 'OpenAI', 
-      description: 'GPT-4o & Reasoning models', 
-      models: ['gpt-4o', 'o1-preview'], 
-      icon: '🧠', 
-      isConnected: false 
-    },
-    { 
-      id: AIProviderId.GROK, 
-      name: 'xAI Grok', 
-      description: 'Sassy intelligence via GitHub Models', 
-      models: ['grok-3', 'grok-4'], 
-      icon: '✖️', 
-      isConnected: false 
-    },
+    { id: AIProviderId.COPILOT, name: 'GitHub Copilot', description: 'AI developer tool', models: ['gpt-4o'], icon: '🐙', isConnected: true },
+    { id: AIProviderId.OPENAI, name: 'OpenAI', description: 'Reasoning models', models: ['gpt-4o', 'o1-preview'], icon: '🧠', isConnected: true },
+    { id: AIProviderId.GROK, name: 'xAI Grok', description: 'Sassy intelligence', models: ['grok-3'], icon: '✖️', isConnected: true },
   ]);
 
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string>('');
-  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true);
   const [projectFiles, setProjectFiles] = useState<ProjectFile[]>([]);
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [currentDeviceFlow, setCurrentDeviceFlow] = useState<DeviceFlowResponse | null>(null);
   const [isTyping, setIsTyping] = useState(false);
 
-  // Backend Socket for Tools
   const socketRef = useRef<Socket | null>(null);
 
+  // Simulated real auth check on mount
   useEffect(() => {
-    socketRef.current = io('/ssh', { path: '/socket.io', transports: ['websocket'] });
-    if (sessions.length === 0) handleNewChat();
-    return () => { socketRef.current?.disconnect(); };
+    const checkSession = async () => {
+      // In a real NextAuth scenario, we would call fetch('/api/auth/session')
+      // For this implementation, we simulate the fetch result
+      setTimeout(() => {
+        const mockUser = localStorage.getItem('omni_user');
+        if (mockUser) {
+          setSession({ user: JSON.parse(mockUser), expires: 'never' });
+        }
+        setAuthLoading(false);
+      }, 1200);
+    };
+
+    checkSession();
   }, []);
+
+  const handleLogin = () => {
+    setAuthLoading(true);
+    // Simulate GitHub OAuth Redirect & Success
+    setTimeout(() => {
+      const user = { id: '1', name: 'Grok Operator', email: 'operator@x.ai', image: 'https://github.com/github.png' };
+      localStorage.setItem('omni_user', JSON.stringify(user));
+      setSession({ user, expires: 'never' });
+      setAuthLoading(false);
+    }, 1500);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('omni_user');
+    setSession(null);
+    setIsSettingsOpen(false);
+  };
+
+  useEffect(() => {
+    if (session) {
+      socketRef.current = io('/ssh', { path: '/socket.io', transports: ['websocket'] });
+      if (sessions.length === 0) handleNewChat();
+    }
+    return () => { socketRef.current?.disconnect(); };
+  }, [session]);
 
   const handleNewChat = () => {
     const newSession: ChatSession = {
@@ -88,14 +108,20 @@ const App: React.FC = () => {
   const runAgentTurn = async (prompt: string | null, history: Message[], toolResponse?: any) => {
     setIsTyping(true);
     try {
-      const response = await GeminiService.chat(prompt, history, projectFiles, isAgentMode, toolResponse);
+      const response = await GeminiService.chat(
+        prompt, 
+        history, 
+        projectFiles, 
+        isAgentMode, 
+        intelligenceMode,
+        toolResponse
+      );
       
       const assistantMessage: Message = {
         id: (Date.now() + Math.random()).toString(),
         role: 'assistant',
         content: response.text,
         timestamp: new Date(),
-        // Fix: Explicitly cast 'pending' status to avoid string widening
         toolCalls: response.toolCalls?.map((tc: any) => ({
           id: tc.id || Math.random().toString(36).substr(2, 9),
           name: tc.name,
@@ -107,15 +133,8 @@ const App: React.FC = () => {
       setSessions(prev => prev.map(s => 
         s.id === activeSessionId ? { ...s, messages: [...s.messages, assistantMessage] } : s
       ));
-
-      // Check if model explicitly called end_agent as the last tool
-      const endTool = assistantMessage.toolCalls?.find(tc => tc.name === 'end_agent');
-      if (endTool) {
-        // Automatically mark as completed as it doesn't require backend work other than disconnecting
-        handleApproveTool(assistantMessage.id, endTool.id);
-      }
     } catch (error) {
-      console.error("Agent Loop Error:", error);
+      console.error("Agent Turn Error:", error);
     } finally {
       setIsTyping(false);
     }
@@ -124,50 +143,34 @@ const App: React.FC = () => {
   const handleSendMessage = async (text: string) => {
     if (!activeSessionId) return;
     const newMessage: Message = { id: Date.now().toString(), role: 'user', content: text, timestamp: new Date() };
-    
     const updatedHistory = [...(activeSession?.messages || []), newMessage];
     setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, messages: updatedHistory } : s));
-
     await runAgentTurn(text, updatedHistory);
   };
 
   const handleApproveTool = async (messageId: string, toolCallId: string) => {
-    // 1. Mark as executing
-    setSessions(prev => prev.map(s => ({
-      ...s,
-      messages: s.messages.map(m => m.id === messageId ? {
-        ...m,
-        // Fix: Explicitly cast 'executing' status
-        toolCalls: m.toolCalls?.map(tc => tc.id === toolCallId ? { ...tc, status: 'executing' as const } : tc)
-      } : m)
-    })));
-
     const currentMessage = activeSession.messages.find(m => m.id === messageId);
     const toolCall = currentMessage?.toolCalls?.find(tc => tc.id === toolCallId);
     if (!toolCall || !socketRef.current) return;
 
-    // 2. Execute via Backend
+    setSessions(prev => prev.map(s => ({
+      ...s,
+      messages: s.messages.map(m => m.id === messageId ? {
+        ...m,
+        toolCalls: m.toolCalls?.map(tc => tc.id === toolCallId ? { ...tc, status: 'executing' as const } : tc)
+      } : m)
+    })));
+
     const executeOnBackend = (): Promise<any> => {
       return new Promise((resolve) => {
         const socket = socketRef.current!;
         switch (toolCall.name) {
-          case 'connect_ssh':
-            socket.emit('agent-ssh-connect', toolCall.args, resolve);
-            break;
-          case 'ssh_exec':
-            socket.emit('agent-ssh-exec', { command: toolCall.args.command }, resolve);
-            break;
-          case 'read_file':
-            socket.emit('agent-ssh-read', { path: toolCall.args.path }, resolve);
-            break;
-          case 'write_file':
-            socket.emit('agent-ssh-write', { path: toolCall.args.path, content: toolCall.args.content }, resolve);
-            break;
-          case 'end_agent':
-            socket.emit('agent-ssh-disconnect', (res: any) => resolve({ ...res, summary: toolCall.args.summary }));
-            break;
-          default:
-            resolve({ error: 'Unknown tool' });
+          case 'connect_ssh': socket.emit('agent-ssh-connect', toolCall.args, resolve); break;
+          case 'ssh_exec': socket.emit('agent-ssh-exec', { command: toolCall.args.command }, resolve); break;
+          case 'read_file': socket.emit('agent-ssh-read', { path: toolCall.args.path }, resolve); break;
+          case 'write_file': socket.emit('agent-ssh-write', { path: toolCall.args.path, content: toolCall.args.content }, resolve); break;
+          case 'end_agent': socket.emit('agent-ssh-disconnect', resolve); break;
+          default: resolve({ error: 'Unknown tool' });
         }
       });
     };
@@ -179,24 +182,16 @@ const App: React.FC = () => {
       ...s,
       messages: s.messages.map(m => m.id === messageId ? {
         ...m,
-        // Fix: Explicitly cast 'completed' status
         toolCalls: m.toolCalls?.map(tc => tc.id === toolCallId ? { ...tc, status: 'completed' as const, result: resultStr } : tc)
       } : m)
     })));
 
-    // 3. Continue the turn: feed result back to Gemini (except for end_agent)
     if (toolCall.name !== 'end_agent') {
-      // Fix: Explicitly type updatedMessages as Message[] and cast 'completed' status to avoid inference widening to string
-      const updatedMessages: Message[] = activeSession.messages.map(m => m.id === messageId ? {
+      const updatedMessages = activeSession.messages.map(m => m.id === messageId ? {
         ...m,
         toolCalls: m.toolCalls?.map(tc => tc.id === toolCallId ? { ...tc, status: 'completed' as const, result: resultStr } : tc)
       } : m);
-      
-      await runAgentTurn(null, updatedMessages, {
-        id: toolCallId,
-        name: toolCall.name,
-        response: result
-      });
+      await runAgentTurn(null, updatedMessages, { id: toolCallId, name: toolCall.name, response: result });
     }
   };
 
@@ -205,7 +200,6 @@ const App: React.FC = () => {
       ...s,
       messages: s.messages.map(m => m.id === messageId ? {
         ...m,
-        // Fix: Explicitly cast 'rejected' status
         toolCalls: m.toolCalls?.map(tc => tc.id === toolCallId ? { ...tc, status: 'rejected' as const } : tc)
       } : m)
     })));
@@ -216,7 +210,6 @@ const App: React.FC = () => {
     reader.onload = (e) => {
       const result = e.target?.result as string;
       const base64 = result.includes(',') ? result.split(',')[1] : result;
-      
       const newFile: ProjectFile = {
         id: Math.random().toString(36).substring(2, 11),
         name: file.name,
@@ -229,61 +222,105 @@ const App: React.FC = () => {
     reader.readAsDataURL(file);
   }, []);
 
+  if (authLoading) {
+    return (
+      <div className="flex h-screen w-full bg-black items-center justify-center">
+        <div className="flex flex-col items-center gap-6">
+          <div className="w-12 h-12 bg-grok-accent rounded-xl flex items-center justify-center animate-pulse">
+            <Command size={24} className="text-white" />
+          </div>
+          <Loader2 className="animate-spin text-grok-muted" size={20} />
+        </div>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return (
+      <div className="flex h-screen w-full bg-black items-center justify-center p-6">
+        <div className="max-w-md w-full bg-grok-card border border-grok-border rounded-[2.5rem] p-10 shadow-2xl animate-in zoom-in-95 duration-500">
+          <div className="w-16 h-16 bg-grok-accent/10 rounded-2xl flex items-center justify-center mb-8 border border-grok-accent/20">
+            <Command size={32} className="text-grok-accent" />
+          </div>
+          <h2 className="text-3xl font-black text-white mb-3 tracking-tighter">GROK-2026 Protocol</h2>
+          <p className="text-grok-muted text-sm leading-relaxed mb-10 font-medium">
+            Authentication required to establish a neural link with the OmniCore autonomous grid. Use your verified credentials to proceed.
+          </p>
+          <button 
+            onClick={handleLogin}
+            className="w-full flex items-center justify-center gap-4 py-4 bg-white text-black font-black rounded-2xl hover:brightness-90 transition-all shadow-xl active:scale-[0.98]"
+          >
+            <Github size={20} /> Sign in with GitHub
+          </button>
+          <div className="mt-10 pt-8 border-t border-grok-border flex items-center justify-between opacity-50">
+             <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-grok-muted">
+               <ShieldCheck size={14} className="text-grok-success" />
+               E2E Secure
+             </div>
+             <p className="text-[10px] text-grok-muted font-mono tracking-tighter uppercase">OmniCore v3.2</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex h-screen w-full bg-slate-950 overflow-hidden text-slate-100">
+    <div className="flex h-screen w-full bg-grok-bg overflow-hidden text-grok-foreground">
       <Sidebar 
-        activeProviderId={activeProvider}
         currentView={currentView}
         isAgentMode={isAgentMode}
         onToggleAgentMode={() => setIsAgentMode(!isAgentMode)}
         onSelectView={setCurrentView}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onNewChat={handleNewChat}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={setIsSidebarCollapsed}
+        user={session.user}
       />
       
-      <main className="flex-1 flex flex-col min-w-0 bg-slate-950 relative">
-        {currentView === AppView.CHAT ? (
-          <ChatArea 
-            provider={providers.find(p => p.id === activeProvider)!}
-            messages={activeSession?.messages || []}
-            onSendMessage={handleSendMessage}
-            isTyping={isTyping}
-            isAgentMode={isAgentMode}
-            onToggleRightSidebar={() => setIsRightSidebarOpen(!isRightSidebarOpen)}
-            isRightSidebarOpen={isRightSidebarOpen}
-            onApproveTool={handleApproveTool}
-            onRejectTool={handleRejectTool}
+      <main className="flex-1 flex flex-col min-w-0 bg-grok-bg relative z-0">
+        <ChatArea 
+          provider={providers.find(p => p.id === activeProvider)!}
+          messages={activeSession?.messages || []}
+          onSendMessage={handleSendMessage}
+          isTyping={isTyping}
+          isAgentMode={isAgentMode}
+          intelligenceMode={intelligenceMode}
+          onSetIntelligenceMode={setIntelligenceMode}
+          onToggleRightSidebar={() => setIsRightSidebarOpen(!isRightSidebarOpen)}
+          isRightSidebarOpen={isRightSidebarOpen}
+          onApproveTool={handleApproveTool}
+          onRejectTool={handleRejectTool}
+        />
+
+        {(!isSidebarCollapsed || isRightSidebarOpen) && (
+          <div 
+            className="fixed inset-0 bg-black/0 z-[5] lg:hidden"
+            onClick={() => {
+                setIsSidebarCollapsed(true);
+                setIsRightSidebarOpen(false);
+            }}
           />
-        ) : (
-          <TerminalArea />
         )}
       </main>
 
-      {isRightSidebarOpen && currentView === AppView.CHAT && (
-        <RightSidebar 
-          sessions={sessions}
-          activeSessionId={activeSessionId}
-          projectFiles={projectFiles}
-          onSelectSession={setActiveSessionId}
-          onUploadFile={handleFileUpload}
-          onRemoveFile={(id) => setProjectFiles(prev => prev.filter(f => f.id !== id))}
-          onClose={() => setIsRightSidebarOpen(false)}
-        />
-      )}
-
-      {isModalOpen && currentDeviceFlow && (
-        <DeviceFlowModal data={currentDeviceFlow} onClose={() => setIsModalOpen(false)} onComplete={() => setIsModalOpen(false)} />
-      )}
+      <RightSidebar 
+        sessions={sessions}
+        activeSessionId={activeSessionId}
+        projectFiles={projectFiles}
+        onSelectSession={setActiveSessionId}
+        onUploadFile={handleFileUpload}
+        onRemoveFile={(id) => setProjectFiles(prev => prev.filter(f => f.id !== id))}
+        isOpen={isRightSidebarOpen}
+        onToggle={setIsRightSidebarOpen}
+      />
 
       {isSettingsOpen && (
         <SettingsModal 
           providers={providers}
           activeProviderId={activeProvider}
           onSelectProvider={setActiveProvider}
-          onLogin={(id) => {
-            setCurrentDeviceFlow({ user_code: 'GH-X-AGENT', verification_uri: 'https://github.com/login/device', device_code: 'x', expires_in: 900, interval: 5 });
-            setIsModalOpen(true);
-          }}
+          onLogout={handleLogout}
           onClose={() => setIsSettingsOpen(false)}
         />
       )}

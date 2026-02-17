@@ -1,13 +1,13 @@
 
 import React from 'react';
 import { AIProviderId, ProviderInfo } from '../types';
-import { X, Settings, Github, CheckCircle2, ShieldCheck, Cpu } from 'lucide-react';
+import { X, Settings, CheckCircle2, ShieldCheck, Cpu, Database, LogOut, ShieldAlert } from 'lucide-react';
 
 interface SettingsModalProps {
   providers: ProviderInfo[];
   activeProviderId: AIProviderId;
   onSelectProvider: (id: AIProviderId) => void;
-  onLogin: (id: AIProviderId) => void;
+  onLogout: () => void;
   onClose: () => void;
 }
 
@@ -15,103 +15,80 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   providers,
   activeProviderId,
   onSelectProvider,
-  onLogin,
+  onLogout,
   onClose
 }) => {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-slate-900 border border-slate-800 w-full max-w-xl rounded-[2rem] overflow-hidden shadow-2xl ring-1 ring-white/10">
-        <div className="p-6 border-b border-slate-800/50 flex items-center justify-between bg-slate-900/50 backdrop-blur-md">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-600/10 text-blue-500 rounded-xl">
-              <Settings size={20} />
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/95 backdrop-blur-xl p-6 animate-in fade-in duration-300">
+      <div className="bg-grok-card border border-grok-border w-full max-w-2xl rounded-[2.5rem] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-500">
+        <div className="p-8 border-b border-grok-border flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-grok-accent/10 text-grok-accent rounded-2xl border border-grok-accent/20">
+              <Settings size={22} />
             </div>
             <div>
-              <h2 className="text-lg font-bold tracking-tight">System Settings</h2>
-              <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Preferences & Authentication</p>
+              <h2 className="text-xl font-bold tracking-tight text-white leading-none">Settings</h2>
+              <p className="text-[10px] text-grok-muted uppercase tracking-[0.2em] font-black mt-1">Protocol • Identity • Network</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-full text-slate-500 transition-colors">
-            <X size={20} />
+          <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full text-grok-muted hover:text-white transition-all">
+            <X size={24} />
           </button>
         </div>
 
-        <div className="p-6 space-y-8 overflow-y-auto max-h-[70vh] custom-scrollbar">
+        <div className="p-8 space-y-10 overflow-y-auto max-h-[60vh] custom-scrollbar">
           <section>
-            <div className="flex items-center gap-2 mb-4 px-1">
-              <Cpu size={14} className="text-blue-500" />
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Model Orchestration</h3>
-            </div>
-            <div className="space-y-3">
+            <h3 className="text-[10px] font-black text-grok-muted uppercase tracking-[0.2em] mb-6 px-1">Active Reasoning Engine</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {providers.map((provider) => (
                 <div 
                   key={provider.id}
                   onClick={() => onSelectProvider(provider.id)}
-                  className={`p-4 rounded-2xl border transition-all cursor-pointer group relative overflow-hidden ${
+                  className={`p-5 rounded-2xl border transition-all cursor-pointer relative group ${
                     activeProviderId === provider.id 
-                      ? 'bg-blue-600/10 border-blue-600/50 shadow-[0_0_20px_rgba(37,99,235,0.1)]' 
-                      : 'bg-slate-950/50 border-slate-800 hover:border-slate-700'
+                      ? 'bg-grok-accent/5 border-grok-accent shadow-xl shadow-grok-accent/5' 
+                      : 'bg-black border-grok-border/50 hover:border-grok-border hover:bg-white/5'
                   }`}
                 >
                   {activeProviderId === provider.id && (
-                    <div className="absolute top-0 right-0 p-2 text-blue-500 animate-in fade-in slide-in-from-top-1">
+                    <div className="absolute top-4 right-4 text-grok-accent">
                       <CheckCircle2 size={16} />
                     </div>
                   )}
-
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="text-3xl grayscale group-hover:grayscale-0 transition-all transform group-hover:scale-110 duration-300">
-                        {provider.icon}
-                      </div>
-                      <div>
-                        <p className="font-bold text-sm text-slate-100">{provider.name}</p>
-                        <p className="text-[11px] text-slate-500 leading-tight pr-4">{provider.description}</p>
-                      </div>
-                    </div>
+                  <div className="flex items-center gap-3 mb-3">
+                    <span className="text-2xl">{provider.icon}</span>
+                    <p className="font-bold text-sm text-white">{provider.name}</p>
                   </div>
-                  
-                  <div className="flex items-center justify-between mt-2 pt-4 border-t border-slate-800/30">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-2 h-2 rounded-full ${provider.isConnected ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-slate-700'}`}></div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
-                        {provider.isConnected ? 'Verified Identity' : 'Auth Required'}
-                      </span>
-                    </div>
-                    
-                    {!provider.isConnected ? (
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onLogin(provider.id);
-                        }}
-                        className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-[10px] font-bold text-blue-400 rounded-lg transition-colors border border-slate-700"
-                      >
-                        <Github size={14} /> Device Flow
-                      </button>
-                    ) : (
-                      <div className="flex items-center gap-2 text-[10px] font-bold text-emerald-500 px-3 py-1.5 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
-                        <ShieldCheck size={14} /> Active Session
-                      </div>
-                    )}
-                  </div>
+                  <p className="text-[11px] text-grok-muted leading-relaxed font-medium">{provider.description}</p>
                 </div>
               ))}
             </div>
           </section>
+
+          <section className="bg-white/5 rounded-2xl p-6 border border-grok-border">
+             <div className="flex items-start gap-4">
+                <ShieldCheck size={20} className="text-grok-success shrink-0 mt-1" />
+                <div>
+                   <h4 className="font-bold text-white text-sm mb-1">Neural Encryption</h4>
+                   <p className="text-xs text-grok-muted leading-relaxed">
+                     OmniChat implements high-volatility ephemeral storage. Your SSH keys and terminal history reside strictly within encrypted memory (RAM) and are purged upon sign-out.
+                   </p>
+                </div>
+             </div>
+          </section>
         </div>
 
-        <div className="p-6 bg-slate-950/80 backdrop-blur-xl border-t border-slate-800/50 text-center">
-          <div className="flex items-center justify-center gap-4 text-[10px] font-bold text-slate-600 uppercase tracking-[0.2em] mb-3">
-            <span>OAuth 2.0</span>
-            <span className="w-1 h-1 bg-slate-700 rounded-full"></span>
-            <span>AES-256</span>
-            <span className="w-1 h-1 bg-slate-700 rounded-full"></span>
-            <span>TLS 1.3</span>
+        <div className="p-8 bg-black border-t border-grok-border flex items-center justify-between">
+          <button 
+            onClick={onLogout}
+            className="flex items-center gap-2 px-6 py-3 bg-grok-error/10 text-grok-error hover:bg-grok-error/20 border border-grok-error/20 rounded-xl text-xs font-bold transition-all"
+          >
+            <LogOut size={16} /> Disconnect Account
+          </button>
+          <div className="flex items-center gap-4 text-[9px] font-black text-grok-muted uppercase tracking-widest opacity-40">
+            <span className="flex items-center gap-1.5">TLS 1.3</span>
+            <span className="flex items-center gap-1.5">AES-256</span>
           </div>
-          <p className="text-[10px] text-slate-500 leading-relaxed max-w-sm mx-auto">
-            OmniChat uses secure ephemeral sessions. Your API keys and tokens are never persisted in plain text on our servers.
-          </p>
         </div>
       </div>
     </div>

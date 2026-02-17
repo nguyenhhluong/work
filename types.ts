@@ -11,6 +11,18 @@ export enum AppView {
   TERMINAL = 'terminal'
 }
 
+export interface User {
+  id: string;
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
+}
+
+export interface Session {
+  user: User;
+  expires: string;
+}
+
 export interface ToolCall {
   id: string;
   name: string;

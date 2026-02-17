@@ -1,6 +1,7 @@
-
-import { GoogleGenAI, Type, FunctionDeclaration, GenerateContentResponse } from "@google/genai";
+import { GoogleGenAI, Type, FunctionDeclaration } from "@google/genai";
 import { Message, ProjectFile } from "../types";
+
+export type IntelligenceMode = 'fast' | 'balanced' | 'deep';
 
 const sshTools: FunctionDeclaration[] = [
   {
@@ -79,16 +80,33 @@ export class GeminiService {
     history: Message[], 
     files: ProjectFile[] = [], 
     isAgentMode: boolean = false,
+    intelligenceMode: IntelligenceMode = 'balanced',
     toolResponse?: { id: string, name: string, response: any }
   ): Promise<{ text: string; toolCalls?: any[] }> {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
+    // 1. Model Selection Logic
+    // Fast: gemini-2.5-flash-lite-latest
+    // Balanced: gemini-3-flash-preview
+    // Deep Thinking: gemini-3-pro-preview (with max thinking budget)
+    let modelName = 'gemini-3-flash-preview';
+    let thinkingBudget = 0;
+
+    if (intelligenceMode === 'fast') {
+      modelName = 'gemini-2.5-flash-lite-latest';
+    } else if (intelligenceMode === 'deep') {
+      modelName = 'gemini-3-pro-preview';
+      thinkingBudget = 32768; // Max budget for Gemini 3 Pro reasoning
+    }
+
+    // Agent mode defaults to Pro for complex tool execution unless Fast is explicitly requested
+    if (isAgentMode && intelligenceMode !== 'fast') {
+      modelName = 'gemini-3-pro-preview';
+    }
+
     try {
-      // Build parts from history ensuring role consistency for tool calls
       const contents = history.map(m => {
         const parts: any[] = [{ text: m.content || " " }];
-        
-        // Assistant turns with tool calls must represent the functionCall in history
         if (m.toolCalls && m.toolCalls.length > 0 && m.role === 'assistant') {
           m.toolCalls.forEach(tc => {
             parts.push({
@@ -99,14 +117,12 @@ export class GeminiService {
             });
           });
         }
-        
         return {
           role: m.role === 'user' ? 'user' : 'model',
           parts
         };
       });
 
-      // Add tool responses if any as a user turn immediately after the call
       if (toolResponse) {
         contents.push({
           role: 'user',
@@ -119,7 +135,6 @@ export class GeminiService {
         } as any);
       }
 
-      // Add latest prompt with attached project context
       if (prompt) {
         const fileParts = files.map(file => ({
           inlineData: {
@@ -127,33 +142,32 @@ export class GeminiService {
             mimeType: file.type || 'text/plain'
           }
         }));
-        
         contents.push({
           role: 'user',
           parts: [...fileParts, { text: prompt }]
         });
       }
 
-      // Execute content generation using the Gemini 3 Pro model
       const response = await ai.models.generateContent({
-        model: 'gemini-3-pro-preview',
+        model: modelName,
         contents: contents as any,
         config: {
           temperature: 0.7,
-          systemInstruction: `You are OmniChat Agent.
-          ${isAgentMode ? "AGENT MODE ACTIVE. Use SSH tools to manage servers. Plan steps. If a user asks to deploy, connect first, then git pull/npm install. Always show your thinking. Ask for approval on sudo/rm. When the task is done, call end_agent." : "Standard Mode."}`,
-          tools: isAgentMode ? [{ functionDeclarations: sshTools }] : undefined
+          systemInstruction: `You are OmniChat Agent v3. Operating in ${intelligenceMode.toUpperCase()} mode.
+          ${isAgentMode ? "AGENT MODE ACTIVE: Use tools to manage SSH infrastructure. Plan logically." : "STANDARD MODE: Helpful assistant."}`,
+          tools: isAgentMode ? [{ functionDeclarations: sshTools }] : undefined,
+          // Handle thinking budget only if > 0
+          ...(thinkingBudget > 0 ? { thinkingConfig: { thinkingBudget } } : {})
         }
       });
 
-      // Directly access .text property and .functionCalls for clean output extraction
       return {
         text: response.text || "",
         toolCalls: response.functionCalls
       };
     } catch (error) {
       console.error("Gemini API Error:", error);
-      return { text: "Connection error with AI service." };
+      return { text: "AI Service error. Ensure API_KEY is valid and network connectivity is stable." };
     }
   }
 }

@@ -1,44 +1,125 @@
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OmniChat - Unified AI & SSH</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.3.0/css/xterm.css" />
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        // Grok / xAI 2026 Palette
+                        grok: {
+                            bg: '#000000',
+                            card: '#0f0f0f',
+                            secondary: '#161618',
+                            border: '#27272a',
+                            foreground: '#ffffff',
+                            accent: '#1d9bf0', // Blue
+                            muted: '#71717a',
+                            success: '#10b981',
+                            error: '#ef4444'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['Geist Mono', 'monospace'],
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.2s ease-out forwards',
+                        'slide-up': 'slideUp 0.3s cubic-bezier(0, 0, 0.2, 1) forwards',
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' },
+                        },
+                        slideUp: {
+                            '0%': { transform: 'translateY(10px)', opacity: '0' },
+                            '100%': { transform: 'translateY(0)', opacity: '1' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #0f172a;
-            color: #f8fafc;
+            background-color: #000000;
+            color: #ffffff;
+            letter-spacing: -0.01em;
+            overflow: hidden;
         }
-        /* Custom scrollbar */
+
         ::-webkit-scrollbar {
-            width: 8px;
+            width: 4px;
+            height: 4px;
         }
         ::-webkit-scrollbar-track {
-            background: #1e293b;
+            background: transparent;
         }
         ::-webkit-scrollbar-thumb {
-            background: #475569;
-            border-radius: 4px;
+            background: #27272a;
+            border-radius: 10px;
         }
         ::-webkit-scrollbar-thumb:hover {
-            background: #64748b;
+            background: #3f3f46;
         }
-        .terminal {
-            padding: 16px;
+
+        .xterm .xterm-viewport {
+            background-color: #000000 !important;
         }
-        .xterm-viewport::-webkit-scrollbar {
-            width: 10px;
+        
+        [data-tooltip] {
+            position: relative;
         }
-        /* Glassmorphism utility */
-        .glass {
-            background: rgba(15, 23, 42, 0.7);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+        [data-tooltip]:hover::before {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 4px 10px;
+            background: #161618;
+            border: 1px solid #27272a;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 500;
+            color: #ffffff;
+            white-space: nowrap;
+            margin-bottom: 8px;
+            z-index: 100;
+            pointer-events: none;
+        }
+
+        .typing-dot {
+            width: 4px;
+            height: 4px;
+            background-color: #ffffff;
+            border-radius: 50%;
+            display: inline-block;
+            margin: 0 1.5px;
+            animation: typing 1.4s infinite ease-in-out both;
+        }
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes typing {
+            0%, 80%, 100% { transform: scale(0); opacity: 0.3; }
+            40% { transform: scale(1.0); opacity: 1; }
+        }
+
+        /* Glass / Minimal Elevation */
+        .grok-pill {
+            background: #0f0f0f;
+            border: 1px solid #27272a;
         }
     </style>
 <script type="importmap">
@@ -62,7 +143,7 @@
 }
 </script>
 </head>
-<body>
+<body class="bg-grok-bg text-grok-foreground selection:bg-grok-accent/30">
     <div id="root"></div>
 </body>
 </html>

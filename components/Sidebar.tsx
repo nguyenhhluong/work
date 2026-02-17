@@ -1,128 +1,97 @@
 
 import React from 'react';
-import { AIProviderId, AppView } from '../types';
-import { MessageSquare, Terminal as TerminalIcon, Settings, Plus, Sparkles, Bot, Zap, User } from 'lucide-react';
+import { AppView, User } from '../types';
+import { MessageSquare, Terminal as TerminalIcon, Settings, Plus, Sparkles, Bot, Command, PanelLeft, LogOut } from 'lucide-react';
 
 interface SidebarProps {
-  activeProviderId: AIProviderId;
   currentView: AppView;
   isAgentMode: boolean;
   onToggleAgentMode: () => void;
   onSelectView: (view: AppView) => void;
   onOpenSettings: () => void;
   onNewChat: () => void;
+  isCollapsed: boolean;
+  onToggleCollapse: (collapsed: boolean) => void;
+  user?: User;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
-  activeProviderId, 
   currentView, 
   isAgentMode,
   onToggleAgentMode,
   onSelectView, 
   onOpenSettings,
-  onNewChat
+  onNewChat,
+  isCollapsed,
+  onToggleCollapse,
+  user
 }) => {
   return (
-    <aside className="w-72 bg-slate-900 border-r border-slate-800 flex flex-col shrink-0">
-      <div className="p-6 flex items-center gap-3">
-        <div className="w-9 h-9 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-xl flex items-center justify-center font-bold text-white text-xl shadow-xl shadow-blue-600/20 transform -rotate-3">O</div>
-        <div>
-          <h1 className="font-black text-xl tracking-tight leading-none text-white">OmniChat</h1>
-          <p className="text-[9px] text-blue-500 font-bold uppercase tracking-[0.2em] mt-1">Unified Node</p>
+    <aside className={`${isCollapsed ? 'w-16' : 'w-64'} bg-black border-r border-grok-border flex flex-col shrink-0 transition-all duration-200 z-50 relative group/sidebar`}>
+      <button 
+        onClick={() => onToggleCollapse(!isCollapsed)}
+        className="absolute -right-4 top-4 p-1.5 bg-black border border-grok-border rounded-full text-grok-muted hover:text-white transition-all z-50 opacity-0 group-hover/sidebar:opacity-100"
+      >
+        <PanelLeft size={14} className={isCollapsed ? 'rotate-180' : ''} />
+      </button>
+
+      <div className={`p-6 flex items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`}>
+        <div className="w-8 h-8 bg-grok-accent rounded flex items-center justify-center">
+          <Command size={18} className="text-white" />
         </div>
+        {!isCollapsed && <h1 className="font-bold text-lg text-white">Omni</h1>}
       </div>
 
       <div className="px-4 py-2">
         <button
           onClick={onNewChat}
-          className="group w-full flex items-center justify-between px-4 py-3.5 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold text-sm transition-all shadow-xl shadow-blue-600/30 active:scale-[0.98]"
+          className={`w-full flex items-center gap-3 bg-white text-black rounded-full font-bold text-sm transition-all hover:opacity-90 active:scale-95 ${isCollapsed ? 'justify-center p-3' : 'px-4 py-2.5'}`}
         >
-          <div className="flex items-center gap-3">
-            <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" />
-            New Conversation
-          </div>
-          <Sparkles size={14} className="opacity-50" />
+          <Plus size={18} />
+          {!isCollapsed && <span>New Chat</span>}
         </button>
       </div>
 
-      <div className="px-4 py-4 border-b border-slate-800/50">
+      <nav className="flex-1 overflow-y-auto p-3 space-y-1 custom-scrollbar mt-4">
+        <button
+          onClick={() => onSelectView(AppView.CHAT)}
+          className={`w-full flex items-center gap-4 p-3 rounded-xl transition-all ${currentView === AppView.CHAT ? 'bg-grok-secondary text-white' : 'text-grok-muted hover:bg-white/5 hover:text-white'} ${isCollapsed ? 'justify-center' : ''}`}
+        >
+          <MessageSquare size={18} />
+          {!isCollapsed && <span className="text-sm font-medium">Messages</span>}
+        </button>
+        <button
+          onClick={() => onSelectView(AppView.TERMINAL)}
+          className={`w-full flex items-center gap-4 p-3 rounded-xl transition-all ${currentView === AppView.TERMINAL ? 'bg-grok-secondary text-white' : 'text-grok-muted hover:bg-white/5 hover:text-white'} ${isCollapsed ? 'justify-center' : ''}`}
+        >
+          <TerminalIcon size={18} />
+          {!isCollapsed && <span className="text-sm font-medium">Terminal</span>}
+        </button>
         <button
           onClick={onToggleAgentMode}
-          className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-all ${
-            isAgentMode 
-              ? 'bg-indigo-600/10 border-indigo-500/40 shadow-[0_0_15px_rgba(99,102,241,0.1)]' 
-              : 'bg-slate-950 border-slate-800 hover:border-slate-700'
-          }`}
+          className={`w-full flex items-center gap-4 p-3 rounded-xl transition-all ${isAgentMode ? 'text-grok-success' : 'text-grok-muted hover:bg-white/5 hover:text-white'} ${isCollapsed ? 'justify-center' : ''}`}
         >
-          <div className="flex items-center gap-3">
-            <div className={`p-2 rounded-xl ${isAgentMode ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/30 animate-pulse' : 'bg-slate-800 text-slate-400'}`}>
-              <Bot size={18} />
-            </div>
-            <div className="text-left">
-              <p className={`text-xs font-bold ${isAgentMode ? 'text-indigo-400' : 'text-slate-200'}`}>Agent Mode</p>
-              <p className="text-[9px] text-slate-500 uppercase tracking-widest font-bold">Autonomous Ops</p>
-            </div>
-          </div>
-          <div className={`w-10 h-5 rounded-full relative transition-colors ${isAgentMode ? 'bg-indigo-600' : 'bg-slate-800'}`}>
-            <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${isAgentMode ? 'left-6 shadow-sm' : 'left-1'}`} />
-          </div>
+          <Bot size={18} />
+          {!isCollapsed && <span className="text-sm font-medium">Agent Mode</span>}
         </button>
-      </div>
-
-      <nav className="flex-1 overflow-y-auto p-4 space-y-8 mt-4 custom-scrollbar">
-        <div>
-          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4 px-3">Workspace</p>
-          <div className="space-y-1.5">
-            <button
-              onClick={() => onSelectView(AppView.CHAT)}
-              className={`w-full flex items-center gap-3 p-3.5 rounded-2xl transition-all relative group ${
-                currentView === AppView.CHAT 
-                  ? 'bg-blue-600/10 text-blue-400 ring-1 ring-blue-500/20' 
-                  : 'text-slate-400 hover:bg-slate-800/50 border border-transparent hover:text-slate-200'
-              }`}
-            >
-              <MessageSquare size={18} className={currentView === AppView.CHAT ? 'text-blue-500' : 'text-slate-500 group-hover:text-slate-300'} />
-              <span className="text-sm font-semibold tracking-tight">AI Multi-Chat</span>
-              {currentView === AppView.CHAT && <div className="absolute left-0 w-1 h-4 bg-blue-500 rounded-full" />}
-            </button>
-            <button
-              onClick={() => onSelectView(AppView.TERMINAL)}
-              className={`w-full flex items-center gap-3 p-3.5 rounded-2xl transition-all relative group ${
-                currentView === AppView.TERMINAL 
-                  ? 'bg-indigo-600/10 text-indigo-400 ring-1 ring-indigo-500/20' 
-                  : 'text-slate-400 hover:bg-slate-800/50 border border-transparent hover:text-slate-200'
-              }`}
-            >
-              <TerminalIcon size={18} className={currentView === AppView.TERMINAL ? 'text-indigo-500' : 'text-slate-500 group-hover:text-slate-300'} />
-              <span className="text-sm font-semibold tracking-tight">Cloud Terminal</span>
-              {currentView === AppView.TERMINAL && <div className="absolute left-0 w-1 h-4 bg-indigo-500 rounded-full" />}
-            </button>
-          </div>
-        </div>
       </nav>
 
-      <div className="p-4 bg-slate-900/80 backdrop-blur-xl border-t border-slate-800/50">
-        <div className="flex items-center justify-between px-2 mb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-300 group hover:border-blue-500/50 transition-colors">
-              <User size={16} />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-slate-200">Local Operator</p>
-              <div className="flex items-center gap-1.5">
-                <div className={`w-1.5 h-1.5 rounded-full ${isAgentMode ? 'bg-indigo-500 animate-pulse' : 'bg-emerald-500 animate-pulse'}`}></div>
-                <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">{isAgentMode ? 'Agent Engaged' : 'System Ready'}</p>
-              </div>
+      <div className="p-4 border-t border-grok-border space-y-2">
+        {user && !isCollapsed && (
+          <div className="flex items-center gap-3 p-2 mb-2 animate-in fade-in duration-500">
+            <img src={user.image || ''} alt={user.name || 'User'} className="w-8 h-8 rounded-full border border-grok-border" />
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-white truncate">{user.name}</p>
+              <p className="text-[9px] text-grok-muted font-black uppercase tracking-widest opacity-60">Verified Operator</p>
             </div>
           </div>
-        </div>
-        
+        )}
         <button 
           onClick={onOpenSettings}
-          className="w-full flex items-center justify-center gap-2 py-3 bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white rounded-xl font-bold text-xs transition-all border border-slate-700/50 group"
+          className={`w-full flex items-center gap-4 p-3 text-grok-muted hover:text-white transition-all ${isCollapsed ? 'justify-center' : ''}`}
         >
-          <Settings size={14} className="group-hover:rotate-45 transition-transform" />
-          Settings & Identity
+          <Settings size={18} />
+          {!isCollapsed && <span className="text-sm font-medium">Settings</span>}
         </button>
       </div>
     </aside>

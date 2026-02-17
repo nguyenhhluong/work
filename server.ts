@@ -1,8 +1,8 @@
-
 import { createServer } from 'node:http';
 import { Server } from 'socket.io';
 import { Client as SshClient } from 'ssh2';
 import next from 'next';
+import { Buffer } from 'node:buffer'; // Import Buffer for modern Node envs
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = 'localhost';
@@ -23,8 +23,8 @@ app.prepare().then(() => {
     cors: { origin: '*' }
   });
 
-  // Agent Tool Sessions tracking both client and inactivity timer
-  const sessions = new Map<string, { client: SshClient, timeout: NodeJS.Timeout }>();
+  // Fixed type for timeout to avoid NodeJS.Timeout vs number conflict
+  const sessions = new Map<string, { client: SshClient, timeout: ReturnType<typeof setTimeout> }>();
 
   const resetInactivityTimeout = (socketId: string) => {
     const session = sessions.get(socketId);
@@ -47,7 +47,6 @@ app.prepare().then(() => {
     socket.on('agent-ssh-connect', (config: any, callback: any) => {
       const client = new SshClient();
       client.on('ready', () => {
-        // Initial timeout
         const timeout = setTimeout(() => {
           console.log(`> Session ${socket.id} timed out due to inactivity.`);
           client.end();
@@ -75,7 +74,7 @@ app.prepare().then(() => {
 
     socket.on('agent-ssh-exec', ({ command }: { command: string }, callback: any) => {
       const session = sessions.get(socket.id);
-      if (!session) return callback({ error: 'No SSH session active. Connect first or session may have timed out.' });
+      if (!session) return callback({ error: 'No SSH session active. Connect first.' });
 
       resetInactivityTimeout(socket.id);
       session.client.exec(command, (err, stream) => {
@@ -106,7 +105,6 @@ app.prepare().then(() => {
       if (!session) return callback({ error: 'No SSH session active.' });
 
       resetInactivityTimeout(socket.id);
-      // Using base64 to avoid shell escaping issues with complex content
       const b64 = Buffer.from(content).toString('base64');
       session.client.exec(`echo "${b64}" | base64 -d > "${path}"`, (err, stream) => {
         if (err) return callback({ error: err.message });
