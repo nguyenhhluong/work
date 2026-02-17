@@ -31,7 +31,7 @@ export const TerminalArea: React.FC = () => {
     if (!isConnected || !config || !termRef.current) return;
 
     // Tokyo Night Theme config
-    terminal.current = new Terminal({
+    const term = new Terminal({
       cursorBlink: true,
       fontSize: 14,
       lineHeight: 1.2,
@@ -60,68 +60,75 @@ export const TerminalArea: React.FC = () => {
       },
     });
 
-    fitAddon.current = new FitAddon();
-    terminal.current.loadAddon(fitAddon.current);
-    terminal.current.loadAddon(new WebLinksAddon());
+    const fit = new FitAddon();
+    term.loadAddon(fit);
+    term.loadAddon(new WebLinksAddon());
 
-    terminal.current.open(termRef.current);
-    fitAddon.current.fit();
+    term.open(termRef.current);
+    
+    // Initial fit
+    setTimeout(() => fit.fit(), 0);
+
+    terminal.current = term;
+    fitAddon.current = fit;
 
     // Initial message
-    terminal.current.write('\x1b[1;34m[OmniTerm]\x1b[0m Establishing encrypted tunnel...\r\n');
+    term.write('\x1b[1;34m[OmniTerm]\x1b[0m Establishing encrypted tunnel...\r\n');
 
-    // Socket.IO Connection using the path defined in server.ts
-    socketRef.current = io('/ssh', {
+    // Socket.IO Connection
+    const socket = io('/ssh', {
       path: '/socket.io',
       transports: ['websocket'],
       query: {
-        cols: terminal.current.cols,
-        rows: terminal.current.rows
+        cols: term.cols,
+        rows: term.rows
       }
     });
 
-    socketRef.current.emit('connect-ssh', config);
+    socketRef.current = socket;
 
-    socketRef.current.on('output', (data: string) => {
-      terminal.current?.write(data);
+    socket.emit('connect-ssh', config);
+
+    socket.on('output', (data: string) => {
+      term.write(data);
     });
 
-    socketRef.current.on('status', (msg: string) => {
-      terminal.current?.write(`\r\n\x1b[1;36m[STATUS]\x1b[0m ${msg}\r\n`);
+    socket.on('status', (msg: string) => {
+      term.write(`\r\n\x1b[1;36m[STATUS]\x1b[0m ${msg}\r\n`);
       if (msg === 'connected') {
         setIsConnecting(false);
         setIsConnected(true);
       }
     });
 
-    socketRef.current.on('error', (err: string) => {
-      terminal.current?.write(`\r\n\x1b[1;31m[SSH ERROR]\x1b[0m ${err}\r\n`);
+    socket.on('error', (err: string) => {
+      term.write(`\r\n\x1b[1;31m[SSH ERROR]\x1b[0m ${err}\r\n`);
       setError(err);
       setIsConnecting(false);
     });
 
-    socketRef.current.on('disconnected', () => {
-      terminal.current?.write('\r\n\x1b[1;31m[SESSION]\x1b[0m Remote host closed the connection.\r\n');
+    socket.on('disconnected', () => {
+      term.write('\r\n\x1b[1;31m[SESSION]\x1b[0m Remote host closed the connection.\r\n');
       handleDisconnect();
     });
 
-    terminal.current.onData((data) => {
-      socketRef.current?.emit('input', data);
+    term.onData((data) => {
+      socket.emit('input', data);
     });
 
-    terminal.current.onResize(({ cols, rows }) => {
-      socketRef.current?.emit('resize', { cols, rows });
+    term.onResize(({ cols, rows }) => {
+      socket.emit('resize', { cols, rows });
     });
 
     const resizeObserver = new ResizeObserver(() => {
-      fitAddon.current?.fit();
+      fit.fit();
     });
     resizeObserver.observe(termRef.current);
 
     return () => {
       resizeObserver.disconnect();
-      terminal.current?.dispose();
-      socketRef.current?.disconnect();
+      term.dispose();
+      socket.disconnect();
     };
   }, [isConnected, config, handleDisconnect]);
 
@@ -129,7 +136,7 @@ export const TerminalArea: React.FC = () => {
     setError(null);
     setIsConnecting(true);
     setConfig(newConfig);
-    // The actual connection success is handled via socket 'status' event
+    // Setting isConnected triggers the useEffect which initializes the socket/terminal
     setIsConnected(true); 
   };
 

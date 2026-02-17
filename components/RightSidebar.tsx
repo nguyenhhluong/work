@@ -1,13 +1,12 @@
 
 import React, { useRef } from 'react';
-import { Plus, History, FolderOpen, FileText, X, Upload, Database } from 'lucide-react';
+import { History, FolderOpen, FileText, X, Upload, Database } from 'lucide-react';
 import { ChatSession, ProjectFile } from '../types';
 
 interface RightSidebarProps {
   sessions: ChatSession[];
   activeSessionId: string;
   projectFiles: ProjectFile[];
-  onNewChat: () => void;
   onSelectSession: (id: string) => void;
   onUploadFile: (file: File) => void;
   onRemoveFile: (id: string) => void;
@@ -18,7 +17,6 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
   sessions,
   activeSessionId,
   projectFiles,
-  onNewChat,
   onSelectSession,
   onUploadFile,
   onRemoveFile,
@@ -45,15 +43,6 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
       </div>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-8">
-        {/* Actions */}
-        <button
-          onClick={onNewChat}
-          className="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-sm transition-all shadow-lg shadow-blue-600/10 mb-4"
-        >
-          <Plus size={18} />
-          New Chat
-        </button>
-
         {/* History */}
         <section>
           <div className="flex items-center justify-between mb-3 px-2">

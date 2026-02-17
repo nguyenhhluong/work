@@ -5,6 +5,7 @@ import { ChatArea } from './components/ChatArea';
 import { RightSidebar } from './components/RightSidebar';
 import { TerminalArea } from './components/TerminalArea';
 import { DeviceFlowModal } from './components/DeviceFlowModal';
+import { SettingsModal } from './components/SettingsModal';
 import { AIProviderId, ProviderInfo, Message, DeviceFlowResponse, ChatSession, ProjectFile, AppView } from './types';
 import { GeminiService } from './services/geminiService';
 
@@ -52,8 +53,9 @@ const App: React.FC = () => {
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true);
   const [projectFiles, setProjectFiles] = useState<ProjectFile[]>([]);
 
-  // Auth State
+  // UI State
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [currentDeviceFlow, setCurrentDeviceFlow] = useState<DeviceFlowResponse | null>(null);
   const [isTyping, setIsTyping] = useState(false);
 
@@ -191,12 +193,11 @@ const App: React.FC = () => {
   return (
     <div className="flex h-screen w-full bg-slate-950 overflow-hidden text-slate-100">
       <Sidebar 
-        providers={providers} 
-        activeId={activeProvider}
+        activeProviderId={activeProvider}
         currentView={currentView}
-        onSelectProvider={handleProviderSelect}
         onSelectView={setCurrentView}
-        onLogin={handleLogin}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        onNewChat={handleNewChat}
       />
       
       <main className="flex-1 flex flex-col min-w-0 bg-slate-950 relative">
@@ -219,7 +220,6 @@ const App: React.FC = () => {
           sessions={sessions}
           activeSessionId={activeSessionId}
           projectFiles={projectFiles}
-          onNewChat={handleNewChat}
           onSelectSession={setActiveSessionId}
           onUploadFile={handleFileUpload}
           onRemoveFile={handleRemoveFile}
@@ -232,6 +232,16 @@ const App: React.FC = () => {
           data={currentDeviceFlow} 
           onClose={() => setIsModalOpen(false)}
           onComplete={handleAuthComplete}
+        />
+      )}
+
+      {isSettingsOpen && (
+        <SettingsModal 
+          providers={providers}
+          activeProviderId={activeProvider}
+          onSelectProvider={handleProviderSelect}
+          onLogin={handleLogin}
+          onClose={() => setIsSettingsOpen(false)}
         />
       )}
     </div>
